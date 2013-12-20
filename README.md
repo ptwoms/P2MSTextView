@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 P2MSTextView (OnGoing)
 ============
 This project is inspired by the Evernote application for IOS.  
@@ -64,11 +63,3 @@ Please open an issue or contact <ptwoms@gmail.com> for the bugs or improvement i
 
 ###Contributions
 - Contributions and suggestions are welcome
-
-
-=======
-P2MSTextView
-============
-
-Rich Text Editor for IOS
->>>>>>> 78b54bc0df5ab868b54315eeb1d7368b65ca69b8
