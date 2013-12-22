@@ -1,6 +1,6 @@
 P2MSTextView (OnGoing)
 ============
-This project is inspired by the Evernote application for IOS.  
+An easy way to enable rich text editing in IOS. This project is inspired by the Evernote's rich text editor.
 
 This is supposed to work on IOS 4.3+.
 
@@ -54,7 +54,7 @@ Implements "P2MSTextViewDelegate" protocol to receive messages from "P2MSTextVie
 Refer to **"P2MSTextViewExampleViewController"** for more information.
 
 ###Importance Notes
-***The code and concepts require a lot of improvements and haven't tested well.*** 
+>*The code and concepts require improvements and invite the contributors*
 
 The current codes are not efficient since I decided not to manipulate directly on **NSAttributedString** when I started working on this project, hoping to reuse the same approach on other platforms. I later will work directly on **NSAttributedString**.
 
