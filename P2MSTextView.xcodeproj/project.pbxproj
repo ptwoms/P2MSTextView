@@ -18,6 +18,7 @@
 		C81E8A9A18575B7400D7DA1A /* magnifier-mask@2x.png in Resources */ = {isa = PBXBuildFile; fileRef = C81E8A9918575B7400D7DA1A /* magnifier-mask@2x.png */; };
 		C81E8A9C18575BD100D7DA1A /* magnifier@2x.png in Resources */ = {isa = PBXBuildFile; fileRef = C81E8A9B18575BD100D7DA1A /* magnifier@2x.png */; };
 		C81E8A9E18575CE000D7DA1A /* selection-dot@2x.png in Resources */ = {isa = PBXBuildFile; fileRef = C81E8A9D18575CE000D7DA1A /* selection-dot@2x.png */; };
+		C81F9E1D18B873D7009DAEF1 /* P2MSParagraph.m in Sources */ = {isa = PBXBuildFile; fileRef = C81F9E1C18B873D7009DAEF1 /* P2MSParagraph.m */; };
 		C822C5FD184CDFF100DF8735 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = C822C5FC184CDFF100DF8735 /* Foundation.framework */; };
 		C822C5FF184CDFF100DF8735 /* CoreGraphics.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = C822C5FE184CDFF100DF8735 /* CoreGraphics.framework */; };
 		C822C601184CDFF100DF8735 /* UIKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = C822C600184CDFF100DF8735 /* UIKit.framework */; };
@@ -117,6 +118,8 @@
 		C81E8A9918575B7400D7DA1A /* magnifier-mask@2x.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "magnifier-mask@2x.png"; sourceTree = "<group>"; };
 		C81E8A9B18575BD100D7DA1A /* magnifier@2x.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "magnifier@2x.png"; sourceTree = "<group>"; };
 		C81E8A9D18575CE000D7DA1A /* selection-dot@2x.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "selection-dot@2x.png"; sourceTree = "<group>"; };
+		C81F9E1B18B873D7009DAEF1 /* P2MSParagraph.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = P2MSParagraph.h; sourceTree = "<group>"; };
+		C81F9E1C18B873D7009DAEF1 /* P2MSParagraph.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = P2MSParagraph.m; sourceTree = "<group>"; };
 		C822C5F9184CDFF100DF8735 /* P2MSTextView.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = P2MSTextView.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		C822C5FC184CDFF100DF8735 /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = System/Library/Frameworks/Foundation.framework; sourceTree = SDKROOT; };
 		C822C5FE184CDFF100DF8735 /* CoreGraphics.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreGraphics.framework; path = System/Library/Frameworks/CoreGraphics.framework; sourceTree = SDKROOT; };
@@ -372,6 +375,8 @@
 				C81C754E184E2877003F89CC /* P2MSHTMLNode.m */,
 				C83ACC6018600BA0005E5689 /* P2MSLinkViewController.h */,
 				C83ACC6118600BA0005E5689 /* P2MSLinkViewController.m */,
+				C81F9E1B18B873D7009DAEF1 /* P2MSParagraph.h */,
+				C81F9E1C18B873D7009DAEF1 /* P2MSParagraph.m */,
 			);
 			path = classes;
 			sourceTree = "<group>";
@@ -420,7 +425,7 @@
 		C822C5F1184CDFF100DF8735 /* Project object */ = {
 			isa = PBXProject;
 			attributes = {
-				LastUpgradeCheck = 0500;
+				LastUpgradeCheck = 0510;
 				ORGANIZATIONNAME = "PYAE PHYO MYINT SOE";
 				TargetAttributes = {
 					C822C613184CDFF100DF8735 = {
@@ -529,6 +534,7 @@
 			files = (
 				C822C631184CE71A00DF8735 /* P2MSGlobalFunctions.m in Sources */,
 				C81C7547184E109E003F89CC /* P2MSTextView.m in Sources */,
+				C81F9E1D18B873D7009DAEF1 /* P2MSParagraph.m in Sources */,
 				C81C754A184E10BA003F89CC /* P2MSContentView.m in Sources */,
 				C822C63D184CEAE600DF8735 /* P2MSSelectionView.m in Sources */,
 				C822C62E184CE6C100DF8735 /* P2MSCaretView.m in Sources */,
@@ -578,7 +584,6 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
-				ARCHS = "$(ARCHS_STANDARD_INCLUDING_64_BIT)";
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++0x";
 				CLANG_CXX_LIBRARY = "libc++";
 				CLANG_ENABLE_MODULES = YES;
@@ -618,7 +623,6 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
-				ARCHS = "$(ARCHS_STANDARD_INCLUDING_64_BIT)";
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++0x";
 				CLANG_CXX_LIBRARY = "libc++";
 				CLANG_ENABLE_MODULES = YES;
@@ -651,13 +655,13 @@
 		C822C626184CDFF100DF8735 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ARCHS = "$(ARCHS_STANDARD)";
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_LAUNCHIMAGE_NAME = LaunchImage;
 				GCC_PRECOMPILE_PREFIX_HEADER = YES;
 				GCC_PREFIX_HEADER = "P2MSTextView/P2MSTextView-Prefix.pch";
 				INFOPLIST_FILE = "P2MSTextView/P2MSTextView-Info.plist";
 				IPHONEOS_DEPLOYMENT_TARGET = 4.3;
+				ONLY_ACTIVE_ARCH = NO;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				VALID_ARCHS = "armv7 armv7s armv64";
 				WRAPPER_EXTENSION = app;
@@ -667,13 +671,13 @@
 		C822C627184CDFF100DF8735 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ARCHS = "$(ARCHS_STANDARD)";
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_LAUNCHIMAGE_NAME = LaunchImage;
 				GCC_PRECOMPILE_PREFIX_HEADER = YES;
 				GCC_PREFIX_HEADER = "P2MSTextView/P2MSTextView-Prefix.pch";
 				INFOPLIST_FILE = "P2MSTextView/P2MSTextView-Info.plist";
 				IPHONEOS_DEPLOYMENT_TARGET = 4.3;
+				ONLY_ACTIVE_ARCH = NO;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				VALID_ARCHS = "armv7 armv7s armv64";
 				WRAPPER_EXTENSION = app;
@@ -683,7 +687,6 @@
 		C822C629184CDFF100DF8735 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ARCHS = "$(ARCHS_STANDARD_INCLUDING_64_BIT)";
 				BUNDLE_LOADER = "$(BUILT_PRODUCTS_DIR)/P2MSTextView.app/P2MSTextView";
 				FRAMEWORK_SEARCH_PATHS = (
 					"$(SDKROOT)/Developer/Library/Frameworks",
@@ -706,7 +709,6 @@
 		C822C62A184CDFF100DF8735 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ARCHS = "$(ARCHS_STANDARD_INCLUDING_64_BIT)";
 				BUNDLE_LOADER = "$(BUILT_PRODUCTS_DIR)/P2MSTextView.app/P2MSTextView";
 				FRAMEWORK_SEARCH_PATHS = (
 					"$(SDKROOT)/Developer/Library/Frameworks",

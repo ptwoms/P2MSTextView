@@ -18,25 +18,11 @@ typedef enum {
     TEXT_UNDERLINE = 8,
     TEXT_STRIKE_THROUGH = 16,
     TEXT_HIGHLIGHT = 32,
-    TEXT_LINK = 64
+    TEXT_LINK = 64,
+    TEXT_FONT_NAME = 128,
+    TEXT_FONT_SIZE = 256,
+    TEXT_FONT_COLOR = 512
 }TEXT_ATTRIBUTE;
-
-typedef enum {
-    TEXT_FONT_SIMPLIFY,
-    TEXT_FONT_PLAIN_TEXT
-}
-TEXT_FONT_STYLE;
-
-typedef enum{
-    PARAGRAPH_SECTION = 100,
-    PARAGRAPH_SUBSECTION,
-    PARAGRAPH_NORMAL,
-    PARAGRAPH_BULLET,
-    PARAGRAPH_NUMBERING,
-    PARAGRAPH_CONTAINER,
-    PARAGRAPH_BLOCK_QUOTE
-}PARAGRAPH_STYLE;
-
 
 
 @interface P2MSGlobalFunctions : NSObject
@@ -56,11 +42,12 @@ typedef enum{
 
 @interface P2MSTextAttribute : P2MSStyle
 @property (nonatomic) TEXT_ATTRIBUTE txtAttrib;
+@property (nonatomic, retain) NSMutableDictionary *attributeValues;
 @end
 
-@interface P2MSParagraphStyle : P2MSStyle
-@property (nonatomic) PARAGRAPH_STYLE paraStyle;
-@end
+//@interface P2MSParagraphStyle : P2MSStyle
+//@property (nonatomic) PARAGRAPH_STYLE paraStyle;
+//@end
 
 @interface P2MSLink : P2MSStyle
 @property (nonatomic, retain) NSString *linkURL;

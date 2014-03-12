@@ -48,10 +48,6 @@
 
 @end
 
-@implementation P2MSParagraphStyle
-
-@end
-
 @implementation P2MSLink
 
 @end

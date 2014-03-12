@@ -24,12 +24,10 @@ typedef enum {
 
     NSRange curActionRange;
     NSRange curSetActionRange;
-    NSRange curParaRange;
 
     TEXT_ATTRIBUTE curSetTextFormat;
     
     NSMutableArray *curAttributes;
-    NSMutableSet *curParagraphs;
     NSMutableSet *links;
     
     //Custom KB
@@ -68,18 +66,18 @@ typedef enum {
         _canDisplayCustomKeyboard = YES;
         
         curAttributes = [NSMutableArray array];
-        curParagraphs = [NSMutableSet set];
         links = [NSMutableSet set];
         
         self.autocorrectionType = UITextAutocorrectionTypeNo;
         _text = [[NSMutableString alloc] init];
+        _paragraphs = [[P2MSParagraphs alloc]init];
+        _paragraphs.text = _text;
+        
         self.editable = YES;
         self.userInteractionEnabled = YES;
         self.autoresizesSubviews = YES;
         
         curActionRange = NSMakeRange(0, 0);
-        curParaRange = NSMakeRange(NSNotFound, 0);
-        _curParagraphStyle = PARAGRAPH_NORMAL;
         _curTextStyle = TEXT_FORMAT_NONE;
         
         _selectedRange = NSMakeRange(0, 0);
@@ -133,12 +131,9 @@ typedef enum {
     _markedRange = NSMakeRange(NSNotFound, 0);
     _correctionRange = NSMakeRange(NSNotFound, 0);
     [curAttributes removeAllObjects];
-    [curParagraphs removeAllObjects];
     [links removeAllObjects];
     
     curActionRange = NSMakeRange(0, 0);
-    curParaRange = NSMakeRange(NSNotFound, 0);
-    _curParagraphStyle = PARAGRAPH_NORMAL;
     _curTextStyle = TEXT_FORMAT_NONE;
     
     if ([[UIMenuController sharedMenuController]isMenuVisible]) {
@@ -202,108 +197,6 @@ typedef enum {
     txtFormat.styleRange = curActionRange;
     [curAttributes addObject:txtFormat];
     [curAttributes sortWithOptions:NSBinarySearchingFirstEqual usingComparator:globalSortBlock];
-}
-
-- (void)applyParagraphStyple:(PARAGRAPH_STYLE)paraStyle toRange:(NSRange)rawSelectedRange{
-    if (rawSelectedRange.location == NSNotFound) {
-        return;
-    }
-    NSRange selectedRange = rawSelectedRange;
-    NSUInteger textLength = _text.length;
-    NSUInteger locStart = selectedRange.location, locEnd = selectedRange.location + selectedRange.length;
-    if (locStart > 0 && [_text characterAtIndex:locStart-1] != '\n') {
-        NSRange prevRange = [self.text rangeOfString:@"\n" options:NSBackwardsSearch range:NSMakeRange(0, locStart)];
-        if (prevRange.length > 0) {
-            locStart = prevRange.location + prevRange.length;
-        }else
-            locStart = 0;
-    }
-    if (locEnd == locStart && locEnd+1 < _text.length) {
-        locEnd++;
-    }
-    if (locEnd > 0 && [_text characterAtIndex:locEnd-1] != '\n') {
-        NSRange nextRange = [self.text rangeOfString:@"\n" options:NSLiteralSearch range:NSMakeRange(locEnd, textLength - locEnd)];
-        if (nextRange.length > 0) {
-            locEnd = nextRange.location + nextRange.length;
-        }else{
-            locEnd = _text.length;
-        }
-    }
-    
-    //new range to apply
-    NSInteger newSelectedLength = locEnd - locStart ;
-    NSRange newRangeToApply = NSMakeRange(locStart, newSelectedLength);
-    NSMutableSet *paraToRemove = [NSMutableSet set];
-    
-    if (curParaRange.length > 0 && _curParagraphStyle != PARAGRAPH_NORMAL) {
-        P2MSParagraphStyle *paraToSave = [[P2MSParagraphStyle alloc]init];
-        paraToSave.paraStyle = _curParagraphStyle;
-        paraToSave.styleRange = curParaRange;
-        [curParagraphs addObject:paraToSave];
-    }
-    
-    curParaRange = NSMakeRange(NSNotFound, 0);
-    _curParagraphStyle = paraStyle;
-    
-    NSMutableArray *newParagraphs = [NSMutableArray array];
-    for (P2MSParagraphStyle *curPara in curParagraphs) {
-        if (curPara.paraStyle == PARAGRAPH_NORMAL || curPara.styleRange.length == 0) {
-            [paraToRemove addObject:curPara];continue;
-        }
-        NSRange intersectRange = NSIntersectionRange(curPara.styleRange, newRangeToApply);
-        if (intersectRange.length > 0) {
-            [paraToRemove addObject:curPara];
-            NSInteger paraFinalPos = curPara.styleRange.location + curPara.styleRange.length;
-            
-            NSRange beforeRange = [_text rangeOfString:@"\n" options:NSBackwardsSearch range:NSMakeRange(curPara.styleRange.location, intersectRange.location - curPara.styleRange.location)];
-            if (beforeRange.location != NSNotFound) {
-                P2MSParagraphStyle *paraToAdd = [[P2MSParagraphStyle alloc]init];
-                paraToAdd.paraStyle = curPara.paraStyle;
-                NSUInteger newLength =  beforeRange.location - curPara.styleRange.location + 1;
-                paraToAdd.styleRange = NSMakeRange(curPara.styleRange.location, newLength);
-                [newParagraphs addObject:paraToAdd];
-            }
-            
-            NSInteger newLocToSearch = intersectRange.location + intersectRange.length;
-            NSInteger newLengthFromSearch = paraFinalPos - newLocToSearch;
-            if (newLengthFromSearch > 0) {
-                if ([_text characterAtIndex:newLocToSearch-1] == '\n') {
-                    P2MSParagraphStyle *paraToAdd = [[P2MSParagraphStyle alloc]init];
-                    paraToAdd.paraStyle = curPara.paraStyle;
-                    paraToAdd.styleRange = NSMakeRange(newLocToSearch, newLengthFromSearch);
-                    [newParagraphs addObject:paraToAdd];
-                }else{
-                    NSRange afterRange = [_text rangeOfString:@"\n" options:NSLiteralSearch range:NSMakeRange(newLocToSearch, newLengthFromSearch)];
-                    if (afterRange.location != NSNotFound) {
-                        NSInteger afterLength = paraFinalPos;
-                        NSInteger afterStartLenght = afterRange.location+afterRange.length;
-                        afterLength -= afterStartLenght;
-                        if (afterLength > 0) {
-                            P2MSParagraphStyle *paraToAdd = [[P2MSParagraphStyle alloc]init];
-                            paraToAdd.paraStyle = curPara.paraStyle;
-                            paraToAdd.styleRange = NSMakeRange(afterStartLenght, afterLength);
-                            [newParagraphs addObject:paraToAdd];
-                        }
-                    }
-                }
-                
-            }
-        }
-    }
-    for (P2MSParagraphStyle *paraDel in paraToRemove) {
-        [curParagraphs removeObject:paraDel];
-    }
-    [curParagraphs addObjectsFromArray:newParagraphs];
-    if (newSelectedLength > 0) {
-        P2MSParagraphStyle *paraToSave = [[P2MSParagraphStyle alloc]init];
-        paraToSave.paraStyle = paraStyle;
-        paraToSave.styleRange = newRangeToApply;
-        [curParagraphs addObject:paraToSave];
-    }
-    [newParagraphs removeAllObjects];
-    newParagraphs = nil;
-    
-    [self rearrangeParagraphsWithSelectedRange:selectedRange];
 }
 
 - (void)applyFormat:(TEXT_ATTRIBUTE)txtFormat toRange:(NSRange)selectedRange{
@@ -402,7 +295,7 @@ typedef enum {
             }
         }
     }else{
-        if (index>0) {
+        if (index>0 && [_text characterAtIndex:index] != '\n') {
             index--;
         }
         if (!NSLocationInRange(index, curActionRange)) {
@@ -442,6 +335,7 @@ typedef enum {
 - (void)deleteFormatAtRange:(NSRange)range{
     //retriev overlap formattings
     if (!range.length)return;
+    [self processLinkAtRange:range withText:nil];
     NSMutableArray *newAttributes = [NSMutableArray array];
     [self saveCurrentAttributes];
     curActionRange = NSMakeRange(NSNotFound, 0);
@@ -516,14 +410,16 @@ typedef enum {
     [self setAction:TEXT_HIGHLIGHT withButton:sender];
 }
 
+
 - (IBAction)linkAction:(id)sender{
     P2MSLinkViewController *linkVC = [[P2MSLinkViewController alloc]initWithStyle:UITableViewStyleGrouped];
     if (self.textViewDelegate) {
         linkVC.delegate = self;
         linkVC.linkRange = NSMakeRange(NSNotFound, 0);
-        NSUInteger locToSearch = _selectedRange.location;
+        NSInteger locToSearch = _selectedRange.location;
         locToSearch -= (locToSearch > 0);
         NSRange rangeToSearch = NSMakeRange(locToSearch, (_selectedRange.length > 0)?_selectedRange.length:1);
+        
         for (P2MSLink *link in links) {
             if (NSIntersectionRange(rangeToSearch, link.styleRange).length > 0) {
                 linkVC.linkURL = link.linkURL;
@@ -533,43 +429,45 @@ typedef enum {
         if (linkVC.linkRange.location == NSNotFound && _selectedRange.length) {
             linkVC.linkRange = _selectedRange;
         }
+        
         [((UIViewController *)self.textViewDelegate) presentModalViewController:linkVC animated:YES];
     }
 }
+
+- (void)apply_paragraph_style:(PARAGRAPH_STYLE)para_style{
+    [_paragraphs applyParagraphStyle:para_style toRange:_selectedRange];
+    [self.textView refreshView];
+    self.contentSize = CGSizeMake(self.frame.size.width, self.textView.frame.size.height+_edgeInsets.top+_edgeInsets.bottom);
+    [self reflectIconForActionChange];
+}
+
+- (void)setEdgeInsets:(UIEdgeInsets)edgeInsets{
+    _edgeInsets = edgeInsets;
+    self.textView.frame = CGRectMake(_edgeInsets.top, _edgeInsets.left, self.bounds.size.width-_edgeInsets.left-_edgeInsets.right,0);
+    [self.textView refreshView];
+    self.contentSize = CGSizeMake(self.frame.size.width, self.textView.frame.size.height+_edgeInsets.top+_edgeInsets.bottom);
+}
+
 
 - (IBAction)sectionAction:(id)sender{
     if (curActionRange.length == 0) {
         _curTextStyle = TEXT_BOLD;
         curActionRange = NSMakeRange(_selectedRange.location, 0);
     }
-    [self applyParagraphStyple:PARAGRAPH_SECTION toRange:_selectedRange];
-    if (curParaRange.location == NSNotFound) {
-        curParaRange = _selectedRange;
-    }
-    [self.textView refreshView];
-    self.contentSize = CGSizeMake(self.frame.size.width, self.textView.frame.size.height);
-    [self reflectIconForActionChange];
+    [self apply_paragraph_style:PARAGRAPH_SECTION];
 }
+
 
 - (IBAction)subSectionAction:(id)sender{
     if (curActionRange.length == 0) {
         _curTextStyle = TEXT_BOLD;
         curActionRange = NSMakeRange(_selectedRange.location, 0);
     }
-    [self applyParagraphStyple:PARAGRAPH_SUBSECTION toRange:_selectedRange];
-    if (curParaRange.location == NSNotFound) {
-        curParaRange = _selectedRange;
-    }
-    [self.textView refreshView];
-    self.contentSize = CGSizeMake(self.frame.size.width, self.textView.frame.size.height);
-    [self reflectIconForActionChange];
+    [self apply_paragraph_style:PARAGRAPH_SUBSECTION];
 }
 
 - (IBAction)paragraphAction:(id)sender{
-    [self applyParagraphStyple:PARAGRAPH_NORMAL toRange:_selectedRange];
-    [self.textView refreshView];
-    self.contentSize = CGSizeMake(self.frame.size.width, self.textView.frame.size.height);
-    [self reflectIconForActionChange];
+    [self apply_paragraph_style:PARAGRAPH_NORMAL];
 }
 
 - (IBAction)blockquoteAction:(id)sender{
@@ -577,37 +475,15 @@ typedef enum {
         _curTextStyle = TEXT_ITALIC;
         curActionRange = NSMakeRange(_selectedRange.location, 0);
     }
-    [self applyParagraphStyple:PARAGRAPH_BLOCK_QUOTE toRange:_selectedRange];
-    if (curParaRange.location == NSNotFound) {
-        curParaRange = _selectedRange;
-    }
-    [self.textView refreshView];
-    self.contentSize = CGSizeMake(self.frame.size.width, self.textView.frame.size.height);
-    [self reflectIconForActionChange];
+    [self apply_paragraph_style:PARAGRAPH_BLOCK_QUOTE];
 }
 
-//just think about at of the line case first
 - (IBAction)bulletAction:(id)sender{
-    PARAGRAPH_STYLE newStyle = (_curParagraphStyle == PARAGRAPH_BULLET)?PARAGRAPH_NORMAL:PARAGRAPH_BULLET;
-    [self applyParagraphStyple:newStyle toRange:_selectedRange];
-    
-    if (curParaRange.location == NSNotFound) {
-        curParaRange = _selectedRange;
-    }
-    [self.textView refreshView];
-    self.contentSize = CGSizeMake(self.frame.size.width, self.textView.frame.size.height);
-    [self reflectIconForActionChange];
+    [self apply_paragraph_style:PARAGRAPH_BULLET];
 }
 
 - (IBAction)numberingAction:(id)sender{
-    PARAGRAPH_STYLE newStyle = (_curParagraphStyle == PARAGRAPH_NUMBERING)?PARAGRAPH_NORMAL:PARAGRAPH_NUMBERING;
-    [self applyParagraphStyple:newStyle toRange:_selectedRange];
-    if (curParaRange.location == NSNotFound) {
-        curParaRange = _selectedRange;
-    }
-    [self.textView refreshView];
-    self.contentSize = CGSizeMake(self.frame.size.width, self.textView.frame.size.height);
-    [self reflectIconForActionChange];
+    [self apply_paragraph_style:PARAGRAPH_NUMBERING];
 }
 
 #pragma mark Styles
@@ -624,14 +500,8 @@ NSComparisonResult (^globalSortBlock)(id,id) = ^(id lhs, id rhs) {
 };
 
 - (NSMutableDictionary *)getStyleAttributes{
-    NSMutableArray *paraArr = [NSMutableArray arrayWithArray:[curParagraphs allObjects]];
+    NSMutableArray *paraArr = _paragraphs.paragraphs;
     NSMutableDictionary *styles = [NSMutableDictionary dictionaryWithCapacity:2];
-    if (curParaRange.location != NSNotFound) {
-        P2MSParagraphStyle *curPar = [[P2MSParagraphStyle alloc]init];
-        curPar.styleRange = curParaRange;//NSMakeRange(curParaRange.location, curParaRange.length);
-        curPar.paraStyle = _curParagraphStyle;
-        [paraArr addObject:curPar];
-    }
     NSMutableArray *arr = [NSMutableArray arrayWithArray:curAttributes];
     if (curActionRange.location != NSNotFound && curActionRange.length > 0) {
         P2MSTextAttribute *tempFormat = [[P2MSTextAttribute alloc]init];
@@ -651,30 +521,16 @@ NSComparisonResult (^globalSortBlock)(id,id) = ^(id lhs, id rhs) {
     }
     [styles setObject:paraArr forKey:@"paragraphs"];
     [styles setObject:arr forKey:@"attributes"];
-    [styles setObject:[NSMutableArray arrayWithArray:[links allObjects]] forKey:@"links"];
+    [styles setObject:links forKey:@"links"];
     return styles;
 }
 
-//- (PARAGRAPH_STYLE)getParagraphStyleAtIndex:(NSInteger)index{
-//    PARAGRAPH_STYLE paraStyle = PARAGRAPH_NORMAL;
-//    if (NSLocationInRange(index, curParaRange)) {
-//        paraStyle = _curParagraphStyle;
-//    }else{
-//        for (P2MSParagraphStyle *curPar in curParagraphs) {
-//            if (NSLocationInRange(index, curPar.styleRange)) {
-//                paraStyle = curPar.paraStyle;break;
-//            }
-//        }
-//    }
-//    return paraStyle;
-//}
-
-- (PARAGRAPH_STYLE)getCurrentParagraphStyle{
-    return _curParagraphStyle;
-}
 
 - (void)replaceTextFormatAtRange:(NSRange)range withText:(NSString *)text andSelectedRange:(NSRange)selectedNSRange{
-    NSUInteger length = text.length;
+    if (range.location == NSNotFound)return;
+
+    [self processLinkAtRange:range withText:text];
+    
     if (range.length > 0) {
         //delete selected range
         NSMutableArray *newAttributes = [NSMutableArray array];
@@ -713,6 +569,7 @@ NSComparisonResult (^globalSortBlock)(id,id) = ^(id lhs, id rhs) {
             }
         }
     }
+    NSUInteger length = text.length;
     
     NSInteger loc = range.location;
     for (P2MSTextAttribute *curFmt in curAttributes) {
@@ -735,7 +592,7 @@ NSComparisonResult (^globalSortBlock)(id,id) = ^(id lhs, id rhs) {
                 
                 P2MSTextAttribute *secondPart = [[P2MSTextAttribute alloc]init];
                 secondPart.styleRange = NSMakeRange(curSetActionRange.location+length, curActionRange.length-firstPart.styleRange.length-curSetActionRange.length);
-                secondPart.txtAttrib = _curTextStyle;
+                secondPart.txtAttrib = _curTextStyle & (!TEXT_LINK);
                 [curAttributes addObject:secondPart];
                 [curAttributes sortWithOptions:NSBinarySearchingFirstEqual usingComparator:globalSortBlock];
             }else{
@@ -758,7 +615,8 @@ NSComparisonResult (^globalSortBlock)(id,id) = ^(id lhs, id rhs) {
                     NSInteger newLength = selectedNSRange.location - curActionRange.location;
                     P2MSTextAttribute *curtxtFmt = [[P2MSTextAttribute alloc]init];
                     curtxtFmt.txtAttrib = _curTextStyle;
-                    curtxtFmt.styleRange = NSMakeRange(curParaRange.location, newLength);
+                    curtxtFmt.styleRange = NSMakeRange(_paragraphs.current_paragraph.styleRange.location, newLength);
+//                    curtxtFmt.styleRange = NSMakeRange(curParaRange.location, newLength);
                     [curAttributes addObject:curtxtFmt];
                     curActionRange = NSMakeRange(selectedNSRange.location, oldLength-newLength);
                 }
@@ -773,281 +631,51 @@ NSComparisonResult (^globalSortBlock)(id,id) = ^(id lhs, id rhs) {
     }
 }
 
-- (void)deleteParagraphFormatForRange:(NSRange)affectedRange withText:(NSString *)text rangeAfter:(NSRange)selectedNSRange{
-    if (affectedRange.location == NSNotFound)return;
-    //delete links
-    NSMutableSet *linkToDelete = [NSMutableSet set];
-    for (P2MSLink *curLink in links) {
-        NSRange intersetRange = NSIntersectionRange(curLink.styleRange, affectedRange);
-        if (intersetRange.length == curLink.styleRange.length) {
-            [linkToDelete addObject:curLink];
-        }else if (intersetRange.length){
-            if (intersetRange.location > curLink.styleRange.location) {
-                curLink.styleRange = NSMakeRange(curLink.styleRange.location, curLink.styleRange.length-intersetRange.length);
-            }else{
-                curLink.styleRange = NSMakeRange(affectedRange.location, curLink.styleRange.length-intersetRange.length);
-            }
-        }else{
-            NSUInteger affectedLoc = affectedRange.location + affectedRange.length;
-            if (affectedLoc <= curLink.styleRange.location) {
-                curLink.styleRange = NSMakeRange(curLink.styleRange.location-affectedRange.length, curLink.styleRange.length);
-            }
-        }
-    }
-    for (P2MSLink *link in linkToDelete) {
-        [links removeObject:link];
-    }
-    
-    //delete paragraphs
-    if (curParaRange.location != NSNotFound && curParaRange.length > 0) {
-        P2MSParagraphStyle *para = [[P2MSParagraphStyle alloc]init];
-        para.paraStyle = _curParagraphStyle;
-        para.styleRange = curParaRange;
-        [curParagraphs addObject:para];
-    }
-    curParaRange = NSMakeRange(NSNotFound, 0);
-    NSMutableSet *paraToDele = [NSMutableSet set];
-    _curParagraphStyle = PARAGRAPH_NORMAL;
-    for (P2MSParagraphStyle *curPara in curParagraphs) {
-        NSRange paraInsideRange = curPara.styleRange;
-        NSRange intersetRange = NSIntersectionRange(curPara.styleRange, affectedRange);
-        if (intersetRange.length > 0) {
-            if (intersetRange.length == paraInsideRange.length) {
-                [paraToDele addObject:curPara];
-            }else{
-                if (curPara.styleRange.location <= affectedRange.location) {
-                    curPara.styleRange = NSMakeRange(curPara.styleRange.location, curPara.styleRange.length-intersetRange.length);
-                }else{
-                    BOOL releasePreNewLine = (affectedRange.location > 0) && ([_text characterAtIndex:affectedRange.location] == '\n') && ([_text characterAtIndex:affectedRange.location-1] != '\n');
-                    NSInteger finalLength = curPara.styleRange.length - intersetRange.length - releasePreNewLine;
-                    if (finalLength > 0) {
-                        curPara.styleRange = NSMakeRange(affectedRange.location+releasePreNewLine, finalLength);
-                    }else{
-                        [paraToDele addObject:curPara];
-                    }
-                }
-                if (curPara.styleRange.length <= 0) {
-                    [paraToDele addObject:curPara];
-                }
-            }
-        }else if (curPara.styleRange.location > affectedRange.location){
-            curPara.styleRange = NSMakeRange(curPara.styleRange.location - affectedRange.length, curPara.styleRange.length);
-        }
-    }
-    for (P2MSParagraphStyle *curP in paraToDele) {
-        [curParagraphs removeObject:curP];
-    }
-    
-    //extend to new line
-    CGFloat textLength = _text.length;
-    for (P2MSParagraphStyle *curPara in curParagraphs) {
-        CGFloat lastPos = curPara.styleRange.location + curPara.styleRange.length;
-        if (lastPos < textLength && [_text characterAtIndex:lastPos-1] != '\n') {
-            NSRange newLineRange = [_text rangeOfString:@"\n" options:NSLiteralSearch range:NSMakeRange(lastPos-1, textLength-lastPos-1)];
-            if (newLineRange.location != NSNotFound) {
-                curPara.styleRange = NSMakeRange(curPara.styleRange.location, newLineRange.location+newLineRange.length - curPara.styleRange.location - text.length);
-            }else{
-                curPara.styleRange = NSMakeRange(curPara.styleRange.location, textLength-curPara.styleRange.location - text.length);
-            }
-        }
-    }
-    
-    //re-adjust it to remove overlap
-    [paraToDele removeAllObjects];
-    NSSortDescriptor *sort = [[NSSortDescriptor alloc]initWithKey:@"self" ascending:YES comparator:globalSortBlock];
-    NSMutableArray *arr = [[curParagraphs sortedArrayUsingDescriptors:[NSArray arrayWithObject:sort]]mutableCopy];
-    [curParagraphs removeAllObjects];
-    int paraCountM1 = arr.count-1;
-    for (int i = 0; i < paraCountM1; i++) {
-        P2MSParagraphStyle *curPara = [arr objectAtIndex:i];
-        P2MSParagraphStyle *nextPara = [arr objectAtIndex:i+1];
-        NSRange intersectRange = NSIntersectionRange(curPara.styleRange, nextPara.styleRange);
-        if (intersectRange.length > 0) {
-            NSInteger newLoc = intersectRange.location + intersectRange.length;
-            NSInteger newLength = nextPara.styleRange.location + nextPara.styleRange.length - newLoc;
-            if (newLength > 0) {
-                nextPara.styleRange = NSMakeRange(newLoc, newLength);
-            }else{
-                [paraToDele addObject:nextPara]; i++;
-            }
-        }
-    }
-    
-    for (P2MSParagraphStyle *curParaToDelete in paraToDele) {
-        [arr removeObject:curParaToDelete];
-    }
-    [curParagraphs addObjectsFromArray:arr];
-    
-    //select current active paragraph
-    if (curParaRange.location == NSNotFound) {
-        NSInteger locToFind = affectedRange.location;
-        if (textLength == selectedNSRange.location+selectedNSRange.length) {
-            locToFind = textLength - text.length-1;
-        }
-        locToFind += (locToFind < 0);
-        for (P2MSParagraphStyle *curPara in curParagraphs) {
-            if (NSLocationInRange(locToFind, curPara.styleRange)) {
-                _curParagraphStyle = curPara.paraStyle;
-                curParaRange = curPara.styleRange;
-                [curParagraphs removeObject:curPara];break;
-            }
-        }
-    }
-}
+//- (void)deleteParagraphFormatForRange:(NSRange)affectedRange withText:(NSString *)text rangeAfter:(NSRange)selectedNSRange{
+//    if (affectedRange.location == NSNotFound)return;
+//    //delete links
+//    NSMutableSet *linkToDelete = [NSMutableSet set];
+//    for (P2MSLink *curLink in links) {
+//        NSRange intersetRange = NSIntersectionRange(curLink.styleRange, affectedRange);
+//        if (intersetRange.length == curLink.styleRange.length) {
+//            [linkToDelete addObject:curLink];
+//        }else if (intersetRange.length){
+//            if (intersetRange.location > curLink.styleRange.location) {
+//                curLink.styleRange = NSMakeRange(curLink.styleRange.location, curLink.styleRange.length-intersetRange.length);
+//            }else{
+//                curLink.styleRange = NSMakeRange(affectedRange.location, curLink.styleRange.length-intersetRange.length);
+//            }
+//        }else{
+//            NSUInteger affectedLoc = affectedRange.location + affectedRange.length;
+//            if (affectedLoc <= curLink.styleRange.location) {
+//                curLink.styleRange = NSMakeRange(curLink.styleRange.location-affectedRange.length, curLink.styleRange.length);
+//            }
+//        }
+//    }
+//    for (P2MSLink *link in linkToDelete) {
+//        [links removeObject:link];
+//    }
+//}
 
-- (void)replaceParagraphFormatAtRange:(NSRange)affectedRange withText:(NSString *)text rangeAfter:(NSRange)selectedNSRange{
-    NSUInteger textLength = text.length;
-    
-    if (affectedRange.length) {
-        [self deleteParagraphFormatForRange:affectedRange withText:text rangeAfter:selectedNSRange];
-    }
-    
-    //insert test inside links
-    if (textLength) {
-        for (P2MSLink *curLink in links) {
-            if (affectedRange.location <= curLink.styleRange.location) {
-                curLink.styleRange = NSMakeRange(curLink.styleRange.location+textLength, curLink.styleRange.length);
-            }else if(NSLocationInRange(affectedRange.location, curLink.styleRange)){
-                curLink.styleRange = NSMakeRange(curLink.styleRange.location, curLink.styleRange.length+textLength);
-            }
-        }
-    }
-    
-    NSInteger loc = affectedRange.location;
-    for (P2MSParagraphStyle *curPara in curParagraphs) {
-        NSRange curARange = curPara.styleRange;
-        if (loc <= curARange.location) {
-            curPara.styleRange = NSMakeRange(curARange.location+textLength, curARange.length);
-        }
-    }
-    
-    if(curParaRange.location != NSNotFound){
-        if([text isEqualToString:@"\n"] && (_curParagraphStyle == PARAGRAPH_SECTION || _curParagraphStyle == PARAGRAPH_SUBSECTION)) {
-            BOOL changetxtFormat = YES;
-            if (_text.length > 1 && [_text characterAtIndex:affectedRange.location] == '\n') {
-                if (affectedRange.location+1 < _text.length && [_text characterAtIndex:affectedRange.location+1] == '\n') {
-                }else if (selectedNSRange.location != curParaRange.location && NSLocationInRange(selectedNSRange.location, curParaRange)){
-                    curParaRange.length += 1;
-                    NSInteger oldLength = curParaRange.length;
-                    NSInteger newLength = selectedNSRange.location - curParaRange.location;
-                    P2MSParagraphStyle *curPara = [[P2MSParagraphStyle alloc]init];
-                    curPara.paraStyle = _curParagraphStyle;
-                    curPara.styleRange = NSMakeRange(curParaRange.location, newLength);
-                    [curParagraphs addObject:curPara];
-                    curParaRange = NSMakeRange(selectedNSRange.location, oldLength-newLength);
-                    changetxtFormat = NO;
-                }
-                else{
-                    curParaRange.length += 1;
-                }
-            }
-            if (curParaRange.length > 0) {
-                P2MSParagraphStyle *curPara = [[P2MSParagraphStyle alloc]init];
-                curPara.paraStyle = _curParagraphStyle;
-                curPara.styleRange = NSMakeRange(curParaRange.location, curParaRange.length);
-                [curParagraphs addObject:curPara];
-            }
-            if (changetxtFormat) {
-                _curTextStyle = TEXT_FORMAT_NONE;
-                [self reflectIconForActionChange];
-            }
-            _curParagraphStyle = PARAGRAPH_NORMAL;
-            curParaRange = NSMakeRange(NSNotFound, 0);
-        }else
-            curParaRange.length += text.length;
-    }
-    
-    if (curParaRange.location != NSNotFound && curParaRange.length > 0) {
-        P2MSParagraphStyle *curPara = [[P2MSParagraphStyle alloc]init];
-        curPara.paraStyle = _curParagraphStyle;
-        curPara.styleRange = curParaRange;
-        [curParagraphs addObject:curPara];
-        curParaRange = NSMakeRange(NSNotFound, 0);
-    }
-    
-    [self rearrangeParagraphsWithSelectedRange:selectedNSRange];
-    
-    if (curParaRange.location == NSNotFound) {
-        NSUInteger indexToConsider = selectedNSRange.location;
-        if (selectedNSRange.location > 0 && selectedNSRange.location == _text.length) {
-            indexToConsider = selectedNSRange.location-1;
-            if ([_text characterAtIndex:indexToConsider] == '\n') {
-                indexToConsider++;
-                for (P2MSParagraphStyle *curPara in curParagraphs) {
-                    if (NSLocationInRange(indexToConsider-1, curPara.styleRange)) {
-                        if (curPara.paraStyle != PARAGRAPH_SUBSECTION && curPara.paraStyle != PARAGRAPH_SECTION) {
-                            indexToConsider--;
-                        }
-                        break;
-                    }
-                }
-                
-            }
-        }
-        for (P2MSParagraphStyle *curPara in curParagraphs) {
-            NSUInteger index = indexToConsider;
-            if ([text isEqualToString:@"\n"] && (curPara.paraStyle == PARAGRAPH_SECTION || curPara.paraStyle == PARAGRAPH_SUBSECTION)) {
-                index = selectedNSRange.location;
-            }
-            if (NSLocationInRange(index, curPara.styleRange)) {
-                _curParagraphStyle = curPara.paraStyle;
-                curParaRange = curPara.styleRange;
-                [curParagraphs removeObject:curPara];break;
-            }
-        }
-    }
-}
-
-- (void)rearrangeParagraphsWithSelectedRange:(NSRange)selectedRange{
-    //remove unnecessory one
-    NSMutableSet *paraToRemove = [NSMutableSet set];
-    for (P2MSParagraphStyle *curPara in curParagraphs) {
-        if (curPara.paraStyle == PARAGRAPH_NORMAL || curPara.styleRange.length == 0) {
-            [paraToRemove addObject:curPara];
-        }
-    }
-    for (P2MSParagraphStyle *delPara in paraToRemove) {
-        [curParagraphs removeObject:delPara];
-    }
-    
-    NSSortDescriptor *sort = [[NSSortDescriptor alloc]initWithKey:@"self" ascending:YES comparator:globalSortBlock];
-    NSArray *arr = [curParagraphs sortedArrayUsingDescriptors:[NSArray arrayWithObject:sort]];
-    [curParagraphs removeAllObjects];
-    
-    P2MSParagraphStyle *prevParagraph = nil;
-    NSRange intersetRange;
-    for (P2MSParagraphStyle *curPara in arr) {
-        if (curPara.paraStyle == PARAGRAPH_NORMAL) {
-            continue;
-        }
-        if (prevParagraph) {//combine the same paragraph styles
-            if (prevParagraph.paraStyle == curPara.paraStyle) {
-                    prevParagraph.styleRange = NSMakeRange(prevParagraph.styleRange.location, curPara.styleRange.location+curPara.styleRange.length - prevParagraph.styleRange.location);
-            }else if(curPara.styleRange.length > 0){
-                if ( (intersetRange = NSIntersectionRange(prevParagraph.styleRange, curPara.styleRange)).length > 0){
-                    //consider two overlapped paragraph range
-                    //assume that this never happened
-                }else if(NSLocationInRange(selectedRange.location, prevParagraph.styleRange)){
-                    curParaRange = prevParagraph.styleRange;
-                    prevParagraph = curPara;
-                }else{
-                    [curParagraphs addObject:prevParagraph];
-                    prevParagraph = curPara;
-                }
-            }
-        }else if(curPara.styleRange.length > 0){
-            prevParagraph = curPara;
-        }else if(curPara.styleRange.location == selectedRange.location){
-            curParaRange = curPara.styleRange;
-        }
-    }
-    if (prevParagraph) {
-        if (NSEqualRanges(selectedRange, prevParagraph.styleRange) || NSLocationInRange(selectedRange.location, prevParagraph.styleRange)) {
-            curParaRange = prevParagraph.styleRange;
-        }else
-            [curParagraphs addObject:prevParagraph];
-    }
-}
+//- (void)replaceParagraphFormatAtRange:(NSRange)affectedRange withText:(NSString *)text rangeAfter:(NSRange)selectedNSRange{
+//    NSUInteger textLength = text.length;
+//    
+//    if (affectedRange.length) {
+//        [self deleteParagraphFormatForRange:affectedRange withText:text rangeAfter:selectedNSRange];
+//    }
+//    
+//    //insert inside links
+//    if (textLength) {
+//        for (P2MSLink *curLink in links) {
+//            if (affectedRange.location <= curLink.styleRange.location) {
+//                curLink.styleRange = NSMakeRange(curLink.styleRange.location+textLength, curLink.styleRange.length);
+//            }else if(NSLocationInRange(affectedRange.location, curLink.styleRange)){
+//                curLink.styleRange = NSMakeRange(curLink.styleRange.location, curLink.styleRange.length+textLength);
+//            }
+//        }
+//    }
+//
+//}
 
 
 #pragma mark UIKeyInput methods
@@ -1075,32 +703,34 @@ NSComparisonResult (^globalSortBlock)(id,id) = ^(id lhs, id rhs) {
     NSRange affectedRange;
     if (correctionRange.location != NSNotFound && correctionRange.length > 0){
         affectedRange =  correctionRange;
-        [self.text replaceCharactersInRange:correctionRange withString:text];
         selectedNSRange.length = 0;
         selectedNSRange.location = (correctionRange.location+text.length);
         _correctionRange = NSMakeRange(NSNotFound, 0);
     }else if (markedTextRange.location != NSNotFound) {
         affectedRange = markedTextRange;
 		// There is marked text -- replace marked text with user-entered text.
-        [self.text replaceCharactersInRange:markedTextRange withString:text];
         selectedNSRange.location = markedTextRange.location + text.length;
         selectedNSRange.length = 0;
         markedTextRange = NSMakeRange(NSNotFound, 0);
     } else if (selectedNSRange.length > 0) {
         affectedRange = selectedNSRange;
 		// Replace selected text with user-entered text.
-        [self.text replaceCharactersInRange:selectedNSRange withString:text];
         selectedNSRange.length = 0;
         selectedNSRange.location += text.length;
     } else {
         affectedRange = selectedNSRange;
 		// Insert user-entered text at current insertion point.
-        [self.text insertString:text atIndex:selectedNSRange.location];
         selectedNSRange.location += text.length;
     }
     //working with document
+    [_paragraphs replaceParagraphStlyeAtRange:affectedRange withText:text];
+    if (affectedRange.length > 0) {
+        [self.text replaceCharactersInRange:affectedRange withString:text];
+    }else{
+        [self.text insertString:text atIndex:affectedRange.location];
+    }
+
     [self replaceTextFormatAtRange:affectedRange withText:text andSelectedRange:selectedNSRange];
-    [self replaceParagraphFormatAtRange:affectedRange withText:text rangeAfter:selectedNSRange];
     
 	// Update underlying ContextTextView.
     [self.textView setContentText:self.text];
@@ -1128,37 +758,32 @@ NSComparisonResult (^globalSortBlock)(id,id) = ^(id lhs, id rhs) {
     NSRange affectedRange = NSMakeRange(NSNotFound, 0);
     if (correctionRange.location != NSNotFound && correctionRange.length > 0) {
         affectedRange = correctionRange;
-        [self.text deleteCharactersInRange:correctionRange];
-        [self deleteFormatAtRange:correctionRange];
         selectedNSRange.location = correctionRange.location;
         selectedNSRange.length = 0;
         [self setCorrectionRange:NSMakeRange(NSNotFound, 0)];
     }else if (markedTextRange.location != NSNotFound) {
 		// There is marked text, so delete it.
-        [self.text deleteCharactersInRange:markedTextRange];
         affectedRange = markedTextRange;
-        [self deleteFormatAtRange:markedTextRange];
         selectedNSRange.location = markedTextRange.location;
         selectedNSRange.length = 0;
         markedTextRange = NSMakeRange(NSNotFound, 0);
     }
     else if (selectedNSRange.length > 0) {
 		// Delete the selected text.
-        [self deleteFormatAtRange:selectedNSRange];
         affectedRange = selectedNSRange;
-        [self.text deleteCharactersInRange:selectedNSRange];
         selectedNSRange.length = 0;
     }
     else if (selectedNSRange.location > 0) {
 		// Delete one char of text at the current insertion point.
         selectedNSRange.location--;
         selectedNSRange.length = 1;
-        [self deleteFormatAtRange:selectedNSRange];
         affectedRange = selectedNSRange;
-        [self.text deleteCharactersInRange:selectedNSRange];
         selectedNSRange.length = 0;
     }
-    [self deleteParagraphFormatForRange:affectedRange withText:@"" rangeAfter:selectedNSRange];
+    
+    [_paragraphs replaceParagraphStlyeAtRange:affectedRange withText:@""];
+    [self.text deleteCharactersInRange:affectedRange];
+    [self deleteFormatAtRange:affectedRange];
     
     [self.textView setContentText:self.text];
     self.markedRange = markedTextRange;
@@ -1221,9 +846,9 @@ NSComparisonResult (^globalSortBlock)(id,id) = ^(id lhs, id rhs) {
     } else {
         // Need to also deal with overlapping ranges.
     }
+    [_paragraphs replaceParagraphStlyeAtRange:indexedRange.range withText:text];
     [self.text replaceCharactersInRange:indexedRange.range withString:text];
     [self replaceTextFormatAtRange:indexedRange.range withText:text andSelectedRange:selectedNSRange];
-    [self replaceParagraphFormatAtRange:indexedRange.range withText:text rangeAfter:selectedNSRange];
     [self.textView setContentText:self.text];
     self.selectedRange = selectedNSRange;
     if (responseToDidChange) {
@@ -1273,30 +898,32 @@ NSComparisonResult (^globalSortBlock)(id,id) = ^(id lhs, id rhs) {
         if (!markedText)
             markedText = @"";
 		// Replace characters in text storage and update markedText range length.
-        [self.text replaceCharactersInRange:markedTextRange withString:markedText];
         affectedRange = markedTextRange;
+        [_paragraphs replaceParagraphStlyeAtRange:affectedRange withText:markedText];
+        [self.text replaceCharactersInRange:affectedRange withString:markedText];
         markedTextRange.length = markedText.length;
     }
     else if (selectedNSRange.length > 0) {
 		// There currently isn't a marked text range, but there is a selected range,
 		// so replace text storage at selected range and update markedTextRange.
-        [self.text replaceCharactersInRange:selectedNSRange withString:markedText];
         affectedRange = selectedNSRange;
+        [_paragraphs replaceParagraphStlyeAtRange:affectedRange withText:markedText];
+        [self.text replaceCharactersInRange:affectedRange withString:markedText];
         markedTextRange.location = selectedNSRange.location;
         markedTextRange.length = markedText.length;
     }
     else {
 		// There currently isn't marked or selected text ranges, so just insert
 		// given text into storage and update markedTextRange.
-        [self.text insertString:markedText atIndex:selectedNSRange.location];
         affectedRange = selectedNSRange;
+        [_paragraphs replaceParagraphStlyeAtRange:affectedRange withText:markedText];
+        [self.text insertString:markedText atIndex:selectedNSRange.location];
         markedTextRange.location = selectedNSRange.location;
         markedTextRange.length = markedText.length;
     }
 	// Updated selected text range and underlying ContentView.
     selectedNSRange = NSMakeRange(selectedRange.location + markedTextRange.location, selectedRange.length);
     [self replaceTextFormatAtRange:affectedRange withText:markedText andSelectedRange:selectedNSRange];
-    [self replaceParagraphFormatAtRange:affectedRange withText:markedText rangeAfter:selectedNSRange];
     [self.textView setContentText:self.text];
     self.markedRange = markedTextRange;
     self.selectedRange = selectedNSRange;
@@ -1443,7 +1070,6 @@ NSComparisonResult (^globalSortBlock)(id,id) = ^(id lhs, id rhs) {
             position = indexedRange.range.location + indexedRange.range.length;
             break;
     }
-    
 	// Return text position using our UITextPosition implementation.
 	// Note that position is not currently checked against document range.
     return [P2MSIndexedPosition positionWithIndex:position];
@@ -1593,44 +1219,8 @@ NSComparisonResult (^globalSortBlock)(id,id) = ^(id lhs, id rhs) {
         [self.inputDelegate selectionWillChange:self];
         
         if (_editable) {
-            if (curParaRange.location != NSNotFound) {
-                if (!NSLocationInRange(index, curParaRange)) {
-                    P2MSParagraphStyle *para = [[P2MSParagraphStyle alloc]init];
-                    para.paraStyle = _curParagraphStyle;
-                    para.styleRange = curParaRange;
-                    [curParagraphs addObject:para];
-                    curParaRange = NSMakeRange(NSNotFound, 0);
-                    _curParagraphStyle = PARAGRAPH_NORMAL;
-                }
-            }
-            if (curParaRange.location == NSNotFound) {
-                NSInteger indexToConsider = index;
-                if (index == _text.length) {
-                    indexToConsider = index-1;
-                }
-                for (P2MSParagraphStyle *curPara in curParagraphs) {
-                    if (NSLocationInRange(indexToConsider, curPara.styleRange)) {
-                        _curParagraphStyle = curPara.paraStyle;
-                        curParaRange = curPara.styleRange;
-                        [curParagraphs removeObject:curPara];break;
-                    }
-                }
-            }
-            NSInteger indexToTest = index-1;
-            if (index > 0 && [_text characterAtIndex:indexToTest] == '\n') {
-                indexToTest = index;
-            }else if (index > 0) {
-                if (curParaRange.location == NSNotFound) {
-                    for (P2MSParagraphStyle *curPara in curParagraphs) {
-                        if (NSLocationInRange(index-1, curPara.styleRange)) {
-                            indexToTest = index;break;
-                        }
-                    }
-                }
-            }else
-                indexToTest = index;
-            
-            [self reflectFormatForLocationChange:indexToTest];
+            [_paragraphs updateCurrentParagraphForPosition:index];
+            [self reflectFormatForLocationChange:index];
             [self reflectIconForActionChange];
         }
         self.markedRange = NSMakeRange(NSNotFound, 0);
@@ -1666,6 +1256,7 @@ NSComparisonResult (^globalSortBlock)(id,id) = ^(id lhs, id rhs) {
     NSRange oldRange = _selectedRange;
     if (range.location!=NSNotFound){
         self.selectedRange = range;
+        [_paragraphs updateCurrentParagraphForPosition:_selectedRange.location];
         if (![[UIMenuController sharedMenuController] isMenuVisible]) {
             [self performSelector:@selector(showMenu) withObject:nil afterDelay:0.1f];
         }
@@ -1678,45 +1269,14 @@ NSComparisonResult (^globalSortBlock)(id,id) = ^(id lhs, id rhs) {
 - (IBAction)longPress:(UILongPressGestureRecognizer*)gestureReg{
     curSetTextFormat = TEXT_FORMAT_NOT_SET;
     [self.textView responseToLongPress:gestureReg];
+
     if (gestureReg.state==UIGestureRecognizerStateBegan || gestureReg.state == UIGestureRecognizerStateChanged) {
         _correctionRange = NSMakeRange(NSNotFound, 0);
         NSInteger index = _selectedRange.location;
-        if (curParaRange.location != NSNotFound) {
-            if (!NSLocationInRange(index, curParaRange)) {
-                P2MSParagraphStyle *para = [[P2MSParagraphStyle alloc]init];
-                para.paraStyle = _curParagraphStyle;
-                para.styleRange = curParaRange;
-                [curParagraphs addObject:para];
-                curParaRange = NSMakeRange(NSNotFound, 0);
-                _curParagraphStyle = PARAGRAPH_NORMAL;
-            }
-        }
-        if (curParaRange.location == NSNotFound) {
-            for (P2MSParagraphStyle *curPara in curParagraphs) {
-                if (NSLocationInRange(index, curPara.styleRange)) {
-                    _curParagraphStyle = curPara.paraStyle;
-                    curParaRange = curPara.styleRange;
-                    [curParagraphs removeObject:curPara];break;
-                }
-            }
-        }
-        
-        NSInteger indexToTest = index;
-        if (index > 0) {
-            if (curParaRange.location == NSNotFound) {
-                for (P2MSParagraphStyle *curPara in curParagraphs) {
-                    if (NSLocationInRange(index-1, curPara.styleRange)) {
-                        indexToTest = index;
-                        break;
-                    }
-                }
-            }
-        }else
-            indexToTest = index;
-
-        [self reflectFormatForLocationChange:indexToTest];
+        [_paragraphs updateCurrentParagraphForPosition:index];
+        [self reflectFormatForLocationChange:index];
         [self reflectIconForActionChange];
-        
+
         UIMenuController *menuController = [UIMenuController sharedMenuController];
         if ([menuController isMenuVisible]) {
             [menuController setMenuVisible:NO animated:NO];
@@ -2162,15 +1722,14 @@ NSComparisonResult (^globalSortBlock)(id,id) = ^(id lhs, id rhs) {
         [highlight setImage:[UIImage imageNamed:(isToApply)?@"highlight-icon-hover":@"highlight-icon"] forState:UIControlStateNormal];
         
         UIButton *bullet = (UIButton *)[styleBaseView.subviews objectAtIndex:5];
-        isToApply = _curParagraphStyle == PARAGRAPH_BULLET;
+        isToApply = _paragraphs.current_paragraph.style == PARAGRAPH_BULLET;
         [bullet setImage:[UIImage imageNamed:(isToApply)?@"bullet-hover":@"bullet"] forState:UIControlStateNormal];
         
         UIButton *numbering = (UIButton *)[styleBaseView.subviews objectAtIndex:6];
-        isToApply = _curParagraphStyle == PARAGRAPH_NUMBERING;
+        isToApply = _paragraphs.current_paragraph.style == PARAGRAPH_NUMBERING;
         [numbering setImage:[UIImage imageNamed:(isToApply)?@"numbering-hover":@"numbering"] forState:UIControlStateNormal];
     }
 }
-
 
 #pragma mark UIResponder
 - (BOOL)canBecomeFirstResponder
@@ -2246,12 +1805,16 @@ NSComparisonResult (^globalSortBlock)(id,id) = ^(id lhs, id rhs) {
         if (linkRange.location == NSNotFound) {
             linkRange = NSMakeRange(_selectedRange.location, linkName.length);
             [self insertText:linkName];
-            [_textView refreshView];
         }
+        
         P2MSLink *link = [[P2MSLink alloc]init];
         link.styleRange = linkRange;
         link.linkURL = linkURL;
         [links addObject:link];
+        
+        [self applyFormat:TEXT_LINK toRange:linkRange];
+        [_textView refreshView];
+        
         if ([_textViewDelegate respondsToSelector:@selector(p2msTextViewLinkAdded:andLink:)]) {
             [_textViewDelegate p2msTextViewLinkAdded:self andLink:link];
         }
@@ -2262,178 +1825,179 @@ NSComparisonResult (^globalSortBlock)(id,id) = ^(id lhs, id rhs) {
 #pragma mark HTML Related
 
 - (NSString *)exportHTMLString{
-    NSMutableString *finalString = [NSMutableString string];
-    NSMutableDictionary *attribs = [self getStyleAttributes];
-    NSMutableArray *attrArr = [attribs objectForKey:@"attributes"];
-    NSMutableArray *paragraphs = [attribs objectForKey:@"paragraphs"];
-    NSMutableArray *hyperLinks = [attribs objectForKey:@"links"];
-    
-    [hyperLinks sortUsingComparator:globalSortBlock];
-    
-    NSMutableArray *intersectFormats = [NSMutableArray array];
-    NSMutableSet *arrToRemove = [NSMutableSet set];
-    
-    NSRange intersectRange;
-    for (P2MSTextAttribute *txtFmt in attrArr) {
-        NSUInteger finalLoc = txtFmt.styleRange.location + txtFmt.styleRange.length;
+//    NSMutableString *finalString = [NSMutableString string];
+//    NSMutableDictionary *attribs = [self getStyleAttributes];
+//    NSMutableArray *attrArr = [attribs objectForKey:@"attributes"];
+//    NSMutableArray *paragraphs = [attribs objectForKey:@"paragraphs"];
+//    NSMutableArray *hyperLinks = [attribs objectForKey:@"links"];
+//    
+//    [hyperLinks sortUsingComparator:globalSortBlock];
+//    
+//    NSMutableArray *intersectFormats = [NSMutableArray array];
+//    NSMutableSet *arrToRemove = [NSMutableSet set];
+//    
+//    NSRange intersectRange;
+//    for (P2MSTextAttribute *txtFmt in attrArr) {
+//        NSUInteger finalLoc = txtFmt.styleRange.location + txtFmt.styleRange.length;
+//        
+//        NSUInteger curLoc = txtFmt.styleRange.location;
+//        for (P2MSLink *curLink in hyperLinks){
+//            intersectRange = NSIntersectionRange(txtFmt.styleRange, curLink.styleRange);
+//            if (intersectRange.length == curLink.styleRange.length && curLink.styleRange.length <=  txtFmt.styleRange.length)break;
+//            if (intersectRange.length){
+//                [arrToRemove addObject:txtFmt];
+//                if (curLoc < intersectRange.location) {
+//                    P2MSTextAttribute *fmtToAdd = [[P2MSTextAttribute alloc]init];
+//                    fmtToAdd.styleRange = NSMakeRange(curLoc, intersectRange.location-curLoc);;
+//                    fmtToAdd.txtAttrib = txtFmt.txtAttrib;
+//                    [intersectFormats addObject:fmtToAdd];
+//                }
+//                P2MSTextAttribute *fmtToAdd = [[P2MSTextAttribute alloc]init];
+//                fmtToAdd.styleRange = intersectRange;
+//                fmtToAdd.txtAttrib = txtFmt.txtAttrib;
+//                [intersectFormats addObject:fmtToAdd];
+//                curLoc = intersectRange.location + intersectRange.length;
+//            }
+//        }
+//        if (curLoc > txtFmt.styleRange.location && curLoc < finalLoc) {
+//            P2MSTextAttribute *fmtToAdd = [[P2MSTextAttribute alloc]init];
+//            fmtToAdd.styleRange = NSMakeRange(curLoc, finalLoc - curLoc);
+//            fmtToAdd.txtAttrib = txtFmt.txtAttrib;
+//            [intersectFormats addObject:fmtToAdd];
+//        }
+//    }
+//    
+//    for (P2MSTextAttribute *txtFormat in arrToRemove) {
+//        [attrArr removeObject:txtFormat];
+//    }
+//    for (P2MSTextAttribute *txtFmt in intersectFormats) {
+//        [attrArr addObject:txtFmt];
+//    }
+//    
+//    [attrArr sortUsingComparator:globalSortBlock];
+//    
+//    PARAGRAPH_STYLE prevParaFormat = PARAGRAPH_NORMAL;
+//    NSRange prevParaRange = NSMakeRange(NSNotFound, 0);
+//    NSMutableString *paraString = [NSMutableString string];
+//    NSRange prevLinkRange = NSMakeRange(NSNotFound, 0);
+//    NSRange linkIntersectRange;
+//    
+//    BOOL isPrevOpen = NO;
+//    for (P2MSTextAttribute *txtFmt in attrArr) {
+//        NSString *curPartString = [_text substringWithRange:txtFmt.styleRange];
+//        BOOL isEndWithNewLine = [curPartString hasSuffix:@"\n"];
+//        NSMutableString *curTextStr = [NSMutableString string];
+//        NSRange insideLinkRange = NSMakeRange(NSNotFound, 0);
+//        NSUInteger finalLoc = txtFmt.styleRange.location;
+//        P2MSLink *curLinkToThink = nil;
+//        for (P2MSLink *curLink in hyperLinks) {
+//            if ((linkIntersectRange = NSIntersectionRange(curLink.styleRange, txtFmt.styleRange)).length) {
+//                insideLinkRange = curLink.styleRange;
+//                if (linkIntersectRange.length == insideLinkRange.length && insideLinkRange.length <= txtFmt.styleRange.length){
+//                    NSRange firstPart = NSMakeRange(finalLoc, linkIntersectRange.location-finalLoc);
+//                    NSRange secondPart = linkIntersectRange;
+//                    NSString *firstStr = [_text substringWithRange:firstPart];
+//                    NSString *secondStr = [_text substringWithRange:secondPart];
+//                    [curTextStr appendFormat:@"%@<a href=\"%@\">%@</a>",[firstStr gtm_stringByEscapingForHTML], curLink.linkURL, [secondStr gtm_stringByEscapingForHTML]];
+//                    finalLoc = linkIntersectRange.location + linkIntersectRange.length;
+//                }else{
+//                    curLinkToThink = curLink;
+//                }
+//            }
+//        }
+//        
+//        [curTextStr appendString:[_text substringWithRange:NSMakeRange(finalLoc, txtFmt.styleRange.location+txtFmt.styleRange.length-finalLoc)]];
+//        NSString *textFormat = [self APPLYHTMLTEXTFORMAT:txtFmt.txtAttrib toString:curTextStr];
+//        
+//        if (prevLinkRange.location != NSNotFound) {
+//            if (!curLinkToThink) {//no more link and add closing tag
+//                textFormat = [NSString stringWithFormat:@"</a>%@", textFormat];
+//                prevLinkRange = NSMakeRange(NSNotFound, 0);
+//            }else if (curLinkToThink.styleRange.location != prevLinkRange.location){
+//                textFormat = [NSString stringWithFormat:@"%@</a><a href=\"%@\">", textFormat, curLinkToThink.linkURL];
+//                prevLinkRange = curLinkToThink.styleRange;
+//            }
+//        }else if (curLinkToThink){
+//            textFormat = [NSString stringWithFormat:@"<a href=\"%@\">%@", curLinkToThink.linkURL, textFormat];
+//            prevLinkRange = insideLinkRange;
+//        }
+//        
+//        PARAGRAPH_STYLE insideParaFormat = PARAGRAPH_NORMAL;
+//        NSRange insideParaRange = NSMakeRange(NSNotFound, 0);
         
-        NSUInteger curLoc = txtFmt.styleRange.location;
-        for (P2MSLink *curLink in hyperLinks){
-            intersectRange = NSIntersectionRange(txtFmt.styleRange, curLink.styleRange);
-            if (intersectRange.length == curLink.styleRange.length && curLink.styleRange.length <=  txtFmt.styleRange.length)break;
-            if (intersectRange.length){
-                [arrToRemove addObject:txtFmt];
-                if (curLoc < intersectRange.location) {
-                    P2MSTextAttribute *fmtToAdd = [[P2MSTextAttribute alloc]init];
-                    fmtToAdd.styleRange = NSMakeRange(curLoc, intersectRange.location-curLoc);;
-                    fmtToAdd.txtAttrib = txtFmt.txtAttrib;
-                    [intersectFormats addObject:fmtToAdd];
-                }
-                P2MSTextAttribute *fmtToAdd = [[P2MSTextAttribute alloc]init];
-                fmtToAdd.styleRange = intersectRange;
-                fmtToAdd.txtAttrib = txtFmt.txtAttrib;
-                [intersectFormats addObject:fmtToAdd];
-                curLoc = intersectRange.location + intersectRange.length;
-            }
-        }
-        if (curLoc > txtFmt.styleRange.location && curLoc < finalLoc) {
-            P2MSTextAttribute *fmtToAdd = [[P2MSTextAttribute alloc]init];
-            fmtToAdd.styleRange = NSMakeRange(curLoc, finalLoc - curLoc);
-            fmtToAdd.txtAttrib = txtFmt.txtAttrib;
-            [intersectFormats addObject:fmtToAdd];
-        }
-    }
-    
-    for (P2MSTextAttribute *txtFormat in arrToRemove) {
-        [attrArr removeObject:txtFormat];
-    }
-    for (P2MSTextAttribute *txtFmt in intersectFormats) {
-        [attrArr addObject:txtFmt];
-    }
-    
-    [attrArr sortUsingComparator:globalSortBlock];
-    
-    PARAGRAPH_STYLE prevParaFormat = PARAGRAPH_NORMAL;
-    NSRange prevParaRange = NSMakeRange(NSNotFound, 0);
-    NSMutableString *paraString = [NSMutableString string];
-    NSRange prevLinkRange = NSMakeRange(NSNotFound, 0);
-    NSRange linkIntersectRange;
-    
-    BOOL isPrevOpen = NO;
-    for (P2MSTextAttribute *txtFmt in attrArr) {
-        NSString *curPartString = [_text substringWithRange:txtFmt.styleRange];
-        BOOL isEndWithNewLine = [curPartString hasSuffix:@"\n"];
-        NSMutableString *curTextStr = [NSMutableString string];
-        NSRange insideLinkRange = NSMakeRange(NSNotFound, 0);
-        NSUInteger finalLoc = txtFmt.styleRange.location;
-        P2MSLink *curLinkToThink = nil;
-        for (P2MSLink *curLink in hyperLinks) {
-            if ((linkIntersectRange = NSIntersectionRange(curLink.styleRange, txtFmt.styleRange)).length) {
-                insideLinkRange = curLink.styleRange;
-                if (linkIntersectRange.length == insideLinkRange.length && insideLinkRange.length <= txtFmt.styleRange.length){
-                    NSRange firstPart = NSMakeRange(finalLoc, linkIntersectRange.location-finalLoc);
-                    NSRange secondPart = linkIntersectRange;
-                    NSString *firstStr = [_text substringWithRange:firstPart];
-                    NSString *secondStr = [_text substringWithRange:secondPart];
-                    [curTextStr appendFormat:@"%@<a href=\"%@\">%@</a>",[firstStr gtm_stringByEscapingForHTML], curLink.linkURL, [secondStr gtm_stringByEscapingForHTML]];
-                    finalLoc = linkIntersectRange.location + linkIntersectRange.length;
-                }else{
-                    curLinkToThink = curLink;
-                }
-            }
-        }
-        
-        [curTextStr appendString:[_text substringWithRange:NSMakeRange(finalLoc, txtFmt.styleRange.location+txtFmt.styleRange.length-finalLoc)]];
-        NSString *textFormat = [self APPLYHTMLTEXTFORMAT:txtFmt.txtAttrib toString:curTextStr];
-        
-        if (prevLinkRange.location != NSNotFound) {
-            if (!curLinkToThink) {//no more link and add closing tag
-                textFormat = [NSString stringWithFormat:@"</a>%@", textFormat];
-                prevLinkRange = NSMakeRange(NSNotFound, 0);
-            }else if (curLinkToThink.styleRange.location != prevLinkRange.location){
-                textFormat = [NSString stringWithFormat:@"%@</a><a href=\"%@\">", textFormat, curLinkToThink.linkURL];
-                prevLinkRange = curLinkToThink.styleRange;
-            }
-        }else if (curLinkToThink){
-            textFormat = [NSString stringWithFormat:@"<a href=\"%@\">%@", curLinkToThink.linkURL, textFormat];
-            prevLinkRange = insideLinkRange;
-        }
-        
-        PARAGRAPH_STYLE insideParaFormat = PARAGRAPH_NORMAL;
-        NSRange insideParaRange = NSMakeRange(NSNotFound, 0);
-        
-        for (P2MSParagraphStyle *paraFmt in paragraphs) {
-            if (NSIntersectionRange(paraFmt.styleRange, txtFmt.styleRange).length) {
-                insideParaFormat = paraFmt.paraStyle;
-                insideParaRange = paraFmt.styleRange;break;
-            }
-        }
-        
-        if (prevParaRange.location != NSNotFound) {
-            if (prevParaFormat == insideParaFormat) {
-                if (prevParaFormat == PARAGRAPH_BULLET || prevParaFormat == PARAGRAPH_NUMBERING) {
-                    if (isEndWithNewLine){
-                        [paraString appendFormat:(isPrevOpen)?@"%@</li>":@"<li>%@</li>", textFormat];
-                        isPrevOpen = NO;
-                    }else{
-                        if (isPrevOpen) {
-                            [paraString appendString:textFormat];
-                        }else{
-                            [paraString appendFormat:@"<li>%@", textFormat];
-                            isPrevOpen = YES;
-                        }
-                    }
-                }else
-                    [paraString appendString:textFormat];
-            }else{
-                if (isPrevOpen){
-                    [paraString appendString:@"</li>"];
-                    isPrevOpen = NO;
-                }
-                [finalString appendString:[self APPLY_PARAGRAPHFORMAT:prevParaFormat toString:paraString]];
-                if (insideParaFormat != PARAGRAPH_NORMAL) {
-                    prevParaFormat = insideParaFormat;
-                    prevParaRange = insideParaRange;
-                    if (prevParaFormat == PARAGRAPH_BULLET || prevParaFormat == PARAGRAPH_NUMBERING) {
-                        if (isEndWithNewLine) {
-                            paraString = [NSMutableString stringWithFormat:@"<li>%@</li>", textFormat];
-                            isPrevOpen = NO;
-                        }else{
-                            paraString = [NSMutableString stringWithFormat:@"<li>%@", textFormat];
-                            isPrevOpen = YES;
-                        }
-                    }else
-                        paraString = [NSMutableString stringWithString:textFormat];
-                }else{
-                    [finalString appendString:textFormat];
-                    paraString = [NSMutableString string];
-                    prevParaFormat = PARAGRAPH_NORMAL;
-                    prevParaRange = NSMakeRange(NSNotFound, 0);
-                }
-            }
-        }else if(insideParaFormat != PARAGRAPH_NORMAL && insideParaRange.location != NSNotFound){
-            if (insideParaFormat == PARAGRAPH_BULLET || insideParaFormat == PARAGRAPH_NUMBERING) {
-                if (isEndWithNewLine) {
-                    [paraString appendFormat:@"<li>%@</li>", textFormat];
-                    isPrevOpen = NO;
-                }else{
-                    [paraString appendFormat:@"<li>%@", textFormat];
-                    isPrevOpen = YES;
-                }
-            }else
-                paraString = [NSMutableString stringWithString:textFormat];
-            prevParaRange = insideParaRange;
-            prevParaFormat = insideParaFormat;
-        }else
-            [finalString appendString:textFormat];
-    }
-    if (prevLinkRange.location != NSNotFound)[finalString appendString:@"</a>"];
-    if (isPrevOpen) { [paraString appendString:@"</li>"];isPrevOpen = NO; }
-    if (paraString.length) {
-        [finalString appendString:[self APPLY_PARAGRAPHFORMAT:prevParaFormat toString:paraString]];
-    }
-    //    [finalString replaceOccurrencesOfString:@"\n" withString:@"<br>" options:NSLiteralSearch range:NSMakeRange(0, finalString.length)];
-    return finalString;
+//        for (P2MSParagraphStyle *paraFmt in paragraphs) {
+//            if (NSIntersectionRange(paraFmt.styleRange, txtFmt.styleRange).length) {
+//                insideParaFormat = paraFmt.paraStyle;
+//                insideParaRange = paraFmt.styleRange;break;
+//            }
+//        }
+//        
+//        if (prevParaRange.location != NSNotFound) {
+//            if (prevParaFormat == insideParaFormat) {
+//                if (prevParaFormat == PARAGRAPH_BULLET || prevParaFormat == PARAGRAPH_NUMBERING) {
+//                    if (isEndWithNewLine){
+//                        [paraString appendFormat:(isPrevOpen)?@"%@</li>":@"<li>%@</li>", textFormat];
+//                        isPrevOpen = NO;
+//                    }else{
+//                        if (isPrevOpen) {
+//                            [paraString appendString:textFormat];
+//                        }else{
+//                            [paraString appendFormat:@"<li>%@", textFormat];
+//                            isPrevOpen = YES;
+//                        }
+//                    }
+//                }else
+//                    [paraString appendString:textFormat];
+//            }else{
+//                if (isPrevOpen){
+//                    [paraString appendString:@"</li>"];
+//                    isPrevOpen = NO;
+//                }
+//                [finalString appendString:[self APPLY_PARAGRAPHFORMAT:prevParaFormat toString:paraString]];
+//                if (insideParaFormat != PARAGRAPH_NORMAL) {
+//                    prevParaFormat = insideParaFormat;
+//                    prevParaRange = insideParaRange;
+//                    if (prevParaFormat == PARAGRAPH_BULLET || prevParaFormat == PARAGRAPH_NUMBERING) {
+//                        if (isEndWithNewLine) {
+//                            paraString = [NSMutableString stringWithFormat:@"<li>%@</li>", textFormat];
+//                            isPrevOpen = NO;
+//                        }else{
+//                            paraString = [NSMutableString stringWithFormat:@"<li>%@", textFormat];
+//                            isPrevOpen = YES;
+//                        }
+//                    }else
+//                        paraString = [NSMutableString stringWithString:textFormat];
+//                }else{
+//                    [finalString appendString:textFormat];
+//                    paraString = [NSMutableString string];
+//                    prevParaFormat = PARAGRAPH_NORMAL;
+//                    prevParaRange = NSMakeRange(NSNotFound, 0);
+//                }
+//            }
+//        }else if(insideParaFormat != PARAGRAPH_NORMAL && insideParaRange.location != NSNotFound){
+//            if (insideParaFormat == PARAGRAPH_BULLET || insideParaFormat == PARAGRAPH_NUMBERING) {
+//                if (isEndWithNewLine) {
+//                    [paraString appendFormat:@"<li>%@</li>", textFormat];
+//                    isPrevOpen = NO;
+//                }else{
+//                    [paraString appendFormat:@"<li>%@", textFormat];
+//                    isPrevOpen = YES;
+//                }
+//            }else
+//                paraString = [NSMutableString stringWithString:textFormat];
+//            prevParaRange = insideParaRange;
+//            prevParaFormat = insideParaFormat;
+//        }else
+//            [finalString appendString:textFormat];
+//    }
+//    if (prevLinkRange.location != NSNotFound)[finalString appendString:@"</a>"];
+//    if (isPrevOpen) { [paraString appendString:@"</li>"];isPrevOpen = NO; }
+//    if (paraString.length) {
+//        [finalString appendString:[self APPLY_PARAGRAPHFORMAT:prevParaFormat toString:paraString]];
+//    }
+//    //    [finalString replaceOccurrencesOfString:@"\n" withString:@"<br>" options:NSLiteralSearch range:NSMakeRange(0, finalString.length)];
+//    return finalString;
+    return nil;
 }
 
 - (NSString *)APPLYHTMLTEXTFORMAT:(TEXT_ATTRIBUTE)txtFmt toString:(NSString *)finalString{
@@ -2475,9 +2039,48 @@ NSComparisonResult (^globalSortBlock)(id,id) = ^(id lhs, id rhs) {
     return finalString;
 }
 
+- (void)addNormalParagraphsForString:(NSString *)finalStr withRange:(NSRange)overallRange appendParagraphs:(NSMutableArray **)parasToAdd{
+    NSString *leftStr = [finalStr substringWithRange:overallRange];
+//    NSArray *componentSeparatedByNewLine = [leftStr componentsSeparatedByString:@"\n"];//need to think about new line
+    
+    NSUInteger curLocation = 0;
+    NSInteger strLength = overallRange.length;
+    while (curLocation < strLength) {
+        NSRange occurrence = [leftStr rangeOfString:@"\n" options:NSLiteralSearch range:NSMakeRange(curLocation, strLength-curLocation)];
+        if (occurrence.length) {
+            P2MSParagraph *newParagraph = [[P2MSParagraph alloc]init];
+            newParagraph.styleRange = NSMakeRange(curLocation, occurrence.location+1-curLocation);
+            newParagraph.style = PARAGRAPH_NORMAL;
+            [*parasToAdd addObject:newParagraph];
+            curLocation = occurrence.location+1;
+        }else{
+            P2MSParagraph *newParagraph = [[P2MSParagraph alloc]init];
+            newParagraph.styleRange = NSMakeRange(curLocation, strLength-curLocation);
+            newParagraph.style = PARAGRAPH_NORMAL;
+            [*parasToAdd addObject:newParagraph];
+            break;
+        }
+    }
+//    if (componentSeparatedByNewLine.count > 1) {
+//        NSInteger paraStartPos = overallRange.location;
+//        for (NSString *str in componentSeparatedByNewLine) {
+//            P2MSParagraph *newParagraph = [[P2MSParagraph alloc]init];
+//            newParagraph.styleRange = NSMakeRange(paraStartPos, str.length+1);
+//            newParagraph.style = PARAGRAPH_NORMAL;
+//            [*parasToAdd addObject:newParagraph];
+//            paraStartPos += newParagraph.styleRange.length;
+//        }
+//    }else{
+//        P2MSParagraph *newParagraph = [[P2MSParagraph alloc]init];
+//        newParagraph.styleRange = overallRange;
+//        newParagraph.style = PARAGRAPH_NORMAL;
+//        [*parasToAdd addObject:newParagraph];
+//    }
+}
+
 - (void)importHTMLString:(NSString *)htmlString{
 //    NSString *newhtmlString = [P2MSTextView addExtraNewLines:htmlString];
-    NSArray *htmlNodes = [P2MSHTMLOperation getHTMLNodes:htmlString];
+    NSArray *htmlNodes = [P2MSHTMLOperation getHTMLNodes:htmlString withParent:nil];
     NSMutableString *finalStr = [NSMutableString string];
     NSUInteger lastIndex = 0, curLength = 0;
     for (P2MSHTMLNode *curNode in htmlNodes) {
@@ -2488,55 +2091,57 @@ NSComparisonResult (^globalSortBlock)(id,id) = ^(id lhs, id rhs) {
     }
     
     NSMutableArray *attrArr = [NSMutableArray array];
-    NSMutableSet *paraSet = [NSMutableSet set];
+    NSMutableArray *paraSet = [NSMutableArray array];
     NSMutableSet *allLinks = [NSMutableSet set];
-    
-    NSDictionary *txtFmtReferenceTable = [NSMutableDictionary dictionaryWithObjects:
-                                          [NSArray arrayWithObjects:
-                                           [NSNumber numberWithInt:TEXT_BOLD],
-                                           [NSNumber numberWithInt:TEXT_ITALIC],
-                                           [NSNumber numberWithInt:TEXT_UNDERLINE],
-                                           [NSNumber numberWithInt:TEXT_STRIKE_THROUGH],
-                                           [NSNumber numberWithInt:TEXT_HIGHLIGHT],
-                                           [NSNumber numberWithInt:PARAGRAPH_BULLET],
-                                           [NSNumber numberWithInt:PARAGRAPH_NUMBERING],
-                                           [NSNumber numberWithInt:PARAGRAPH_SECTION],
-                                           [NSNumber numberWithInt:PARAGRAPH_SUBSECTION],
-                                           [NSNumber numberWithInt:PARAGRAPH_BLOCK_QUOTE],
-                                           [NSNumber numberWithInt:PARAGRAPH_NORMAL],
-                                           [NSNumber numberWithInt:TEXT_FORMAT_NONE],
-                                           [NSNumber numberWithInt:PARAGRAPH_NORMAL],
-                                           nil] forKeys:
-                                          [NSArray arrayWithObjects:@"b", @"i", @"u", @"strike", @"mark", @"ul", @"ol", @"h3", @"h5", @"blockquote", @"li", @"NO_HTML", @"a",
-                                           nil]];
     
     for (P2MSHTMLNode *curNode in htmlNodes) {
         P2MSHTMLNode *internalNode = curNode;
-        [P2MSHTMLOperation convertNode:&internalNode toParaAttributes:&paraSet toAttributes:&attrArr andLinks:&allLinks refDict:txtFmtReferenceTable];
+        [P2MSHTMLOperation convertNode:&internalNode toParaAttributes:&paraSet toAttributes:&attrArr andLinks:&allLinks];
+    }
+    //add additional paragraphs
+    NSInteger textLength = finalStr.length;
+    NSInteger initalPos = 0;
+    NSMutableArray *parasToAdd = [NSMutableArray array];
+    for (P2MSParagraph *curPara in paraSet) {
+        if (initalPos < curPara.styleRange.location) {
+            //add New paragraph
+            NSRange overallRange = NSMakeRange(initalPos, curPara.styleRange.location-initalPos);
+            [self addNormalParagraphsForString:finalStr withRange:overallRange appendParagraphs:&parasToAdd];
+            initalPos = initalPos + overallRange.length;
+        }else{
+            initalPos += curPara.styleRange.length;
+        }
+    }
+    if (initalPos < textLength) {
+        //add New paragraph
+        [self addNormalParagraphsForString:finalStr withRange:NSMakeRange(initalPos, textLength-initalPos) appendParagraphs:&parasToAdd];
     }
     
-    [curParagraphs removeAllObjects];
+    for (P2MSParagraph *paragraph_to_test in paraSet) {
+        [self addNormalParagraphsForString:finalStr withRange:paragraph_to_test.styleRange appendParagraphs:&parasToAdd];
+    }
+
+    [paraSet removeAllObjects];
+    
     [curAttributes removeAllObjects];
     [links removeAllObjects];
-    curParaRange = NSMakeRange(NSNotFound, 0);
-    _curParagraphStyle = PARAGRAPH_NORMAL;
+    [_paragraphs clearAll];
+    [parasToAdd sortUsingComparator:globalSortBlock];
+    
+    _paragraphs.text = finalStr;
+    _paragraphs.paragraphs = parasToAdd;
+    if (parasToAdd.count) {
+        [_paragraphs updateCurrentParagraphForPosition:0];
+    }
+    
     curActionRange = NSMakeRange(NSNotFound, 0);
     curSetTextFormat = TEXT_FORMAT_NOT_SET;
     _curTextStyle = TEXT_FORMAT_NONE;
     
-    curParagraphs = paraSet;
     curAttributes = attrArr;
     links = allLinks;
     _text = finalStr;
     
-    NSUInteger curIndex = 0;
-    for (P2MSParagraphStyle *curPara in curParagraphs) {
-        if (NSLocationInRange(curIndex, curPara.styleRange)) {
-            _curParagraphStyle = curPara.paraStyle;
-            curParaRange = curPara.styleRange;
-            [curParagraphs removeObject:curPara];break;
-        }
-    }
     [curAttributes sortUsingComparator:globalSortBlock];
     [self forceReflectFormatForLocationChange:0];
     
@@ -2544,6 +2149,43 @@ NSComparisonResult (^globalSortBlock)(id,id) = ^(id lhs, id rhs) {
     self.selectedRange = NSMakeRange(0, 0);
     [self.textView setContentText:self.text];
     [self adjustScrollView];
+}
+
+#pragma mark -
+#pragma mark TextView Additional Processings
+- (void)processLinkAtRange:(NSRange)range withText:(NSString *)insertText{
+    NSUInteger length = insertText.length;
+    if (range.length) {
+        NSMutableSet *linkToDelete = [NSMutableSet set];
+        for (P2MSLink *curLink in links) {
+            NSRange intersetRange = NSIntersectionRange(curLink.styleRange, range);
+            if (intersetRange.length == curLink.styleRange.length) {
+                [linkToDelete addObject:curLink];
+            }else if (intersetRange.length){
+                if (intersetRange.location > curLink.styleRange.location) {
+                    curLink.styleRange = NSMakeRange(curLink.styleRange.location, curLink.styleRange.length-intersetRange.length+length);
+                }else{
+                    curLink.styleRange = NSMakeRange(range.location, curLink.styleRange.length-intersetRange.length+length);
+                }
+            }else{
+                NSUInteger affectedLoc = range.location + range.length;
+                if (affectedLoc <= curLink.styleRange.location) {
+                    curLink.styleRange = NSMakeRange(curLink.styleRange.location-range.length+length, curLink.styleRange.length);
+                }
+            }
+        }
+        for (P2MSLink *link in linkToDelete) {
+            [links removeObject:link];
+        }
+    }else if(length){
+        for (P2MSLink *curLink in links) {
+            if (range.location <= curLink.styleRange.location) {
+                curLink.styleRange = NSMakeRange(curLink.styleRange.location+length, curLink.styleRange.length);
+            }else if(NSLocationInRange(range.location, curLink.styleRange)){
+                curLink.styleRange = NSMakeRange(curLink.styleRange.location, curLink.styleRange.length+length);
+            }
+        }
+    }
 }
 
 

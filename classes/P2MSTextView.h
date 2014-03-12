@@ -11,6 +11,7 @@
 #import "P2MSContentView.h"
 #import "P2MSGlobalFunctions.h"
 #import "P2MSLinkViewController.h"
+#import "P2MSParagraph.h"
 
 typedef enum {
     KEYBOARD_TYPE_DEFAULT,
@@ -42,12 +43,13 @@ typedef enum {
 @property(nonatomic,unsafe_unretained) id <P2MSTextViewDelegate> textViewDelegate;
 
 @property (nonatomic, readonly)TEXT_ATTRIBUTE curTextStyle;
-@property (nonatomic, readonly) PARAGRAPH_STYLE curParagraphStyle;
 
 @property (nonatomic, retain) NSDictionary *fontNames, *fontSizes;
 @property (nonatomic, retain) NSDictionary *fontColors;
 
 @property(readwrite, retain) UIView *inputAccessoryView;
+
+@property (nonatomic, readonly) P2MSParagraphs *paragraphs;
 
 @property (nonatomic, readonly) UILongPressGestureRecognizer *longPressGestureRecognizer;
 @property (nonatomic, readonly) UITapGestureRecognizer *tapGestureRecognizer, *doubleTapGestureRecognizer;
@@ -61,10 +63,6 @@ typedef enum {
 @property (nonatomic) BOOL canDisplayCustomKeyboard;
 
 @property (nonatomic) UIEdgeInsets edgeInsets;
-
-
-//- (PARAGRAPH_STYLE)getParagraphStyleAtIndex:(NSInteger)index;
-- (PARAGRAPH_STYLE)getCurrentParagraphStyle;
 
 - (NSMutableDictionary *)getStyleAttributes;
 

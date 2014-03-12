@@ -141,81 +141,81 @@ static CGFloat MAX_POSSIBLE_HEIGHT = 100000;
     CGFloat sectionFontSize = [[_fontSizes objectForKey:@"section"]floatValue];
     CGFloat subSectionFontSize = [[_fontSizes objectForKey:@"subsection"]floatValue];
     CGFloat normalFontSize = [[_fontSizes objectForKey:@"normal"]floatValue];
-    for (P2MSParagraphStyle *curPara in paragraphs) {
-        NSRange paraRange = curPara.styleRange;
-        int paraFormat = curPara.paraStyle;
-        if (paraFormat == PARAGRAPH_NORMAL)continue;
-        switch (paraFormat) {
-            case PARAGRAPH_SECTION:{
-                CTFontRef ctFont = CTFontCreateWithName((__bridge CFStringRef)regularFontName, sectionFontSize, NULL);
-                [_attributedString addAttribute:(NSString *)kCTFontAttributeName value:(__bridge id)ctFont range:paraRange];
-                CFRelease(ctFont);
-            }break;
-            case PARAGRAPH_SUBSECTION:{
-                CTFontRef ctFont = CTFontCreateWithName((__bridge CFStringRef)regularFontName, subSectionFontSize, NULL);
-                [_attributedString addAttribute:(NSString *)kCTFontAttributeName value:(__bridge id)ctFont range:paraRange];
-                CFRelease(ctFont);
-            }break;
-            case PARAGRAPH_BLOCK_QUOTE:{
-                [self applyBlockquoteToRange:paraRange];
-            }break;
-            case PARAGRAPH_BULLET:{
-                [self applyBulletToRange:paraRange];
-            }break;
-            case PARAGRAPH_NUMBERING:{
-                [self applyNumberingToRange:paraRange];
-            }break;
-        }
-    }
+    
     NSString *boldItalicFontName = [_fontNames objectForKey:@"bold_italic"];
     NSString *boldFontName = [_fontNames objectForKey:@"bold"];
     NSString *italicFontName = [_fontNames objectForKey:@"italic"];
     
-    if (attrArr.count) {
-        for (P2MSTextAttribute *curFormat in attrArr) {
-            int num = curFormat.txtAttrib;
-            if (num == TEXT_FORMAT_NONE)continue;
-            NSRange curRange = curFormat.styleRange;
-            if (curRange.location+curRange.length > _contentText.length) {
-                NSInteger newLength = _contentText.length;
-                newLength -= curRange.location;
-                curRange = NSMakeRange(curRange.location, (newLength>0)?newLength:0);
+    NSEnumerator *paragraphEnumerator = [paragraphs objectEnumerator];
+    P2MSParagraph *curParagraph = nil;//[paragraphEnumerator nextObject];
+    CGFloat paragraphEndPos = 0;//curParagraph.styleRange.location + curParagraph.styleRange.length;
+    
+    NSString *fontName;
+    CGFloat pointSize, paragraph_pointSize = normalFontSize;
+    
+    for (P2MSTextAttribute *curAttr in attrArr) {
+        if (curAttr.styleRange.location >= paragraphEndPos) {
+            while (curAttr.styleRange.location >= paragraphEndPos && (curParagraph = [paragraphEnumerator nextObject])) {
+                paragraphEndPos = curParagraph.styleRange.location + curParagraph.styleRange.length;
             }
-            int pointSize = normalFontSize;
-            for (P2MSParagraphStyle *curPara in paragraphs) {
-                NSRange paraRange = curPara.styleRange;
-                if (NSLocationInRange(curRange.location, paraRange) ) {
-                    int paraFormat = curPara.paraStyle;
-                    switch (paraFormat) {
-                        case PARAGRAPH_SECTION:pointSize = sectionFontSize;break;
-                        case PARAGRAPH_SUBSECTION:pointSize = subSectionFontSize;break;
-                        default:pointSize = normalFontSize;break;
-                    }
-                    break;
-                }
+            paragraph_pointSize = normalFontSize;
+            switch (curParagraph.style) {
+                case PARAGRAPH_SECTION:{
+                    paragraph_pointSize = sectionFontSize;
+                }break;
+                case PARAGRAPH_SUBSECTION:{
+                    paragraph_pointSize = subSectionFontSize;
+                }break;
+                case PARAGRAPH_BLOCK_QUOTE:{
+                    [self applyBlockquoteToRange:curParagraph.styleRange];
+                }break;
+                case PARAGRAPH_BULLET:{
+                    [self applyBulletToRange:curParagraph.styleRange];
+                }break;
+                case PARAGRAPH_NUMBERING:{
+                    [self applyNumberingToRange:curParagraph.styleRange];
+                }break;
+                default:{
+                }break;
             }
-            if (num & TEXT_BOLD && num & TEXT_ITALIC) {
-                CTFontRef ctFont = CTFontCreateWithName((__bridge CFStringRef) boldItalicFontName, pointSize, NULL);
-                [_attributedString addAttribute:(NSString *)kCTFontAttributeName value:(__bridge id)ctFont range:curRange];
-                CFRelease(ctFont);
-            }else if (num & TEXT_BOLD) {
-                CTFontRef ctFont = CTFontCreateWithName((__bridge CFStringRef) boldFontName, pointSize, NULL);
-                [_attributedString addAttribute:(NSString *)kCTFontAttributeName value:(__bridge id)ctFont range:curRange];
-                CFRelease(ctFont);
-            }else if (num & TEXT_ITALIC) {
-                CTFontRef ctFont = CTFontCreateWithName((__bridge CFStringRef) italicFontName, pointSize, NULL);
-                [_attributedString addAttribute:(NSString *)kCTFontAttributeName value:(__bridge id)ctFont range:curRange];
-                CFRelease(ctFont);
-            }
-            if (num & TEXT_UNDERLINE) {
-                [_attributedString addAttribute:(NSString *)kCTUnderlineStyleAttributeName value:[NSNumber numberWithInteger:kCTUnderlineStyleSingle] range:curRange];
-            }
-            if (num & TEXT_STRIKE_THROUGH) {
-                [_attributedString addAttribute:STRIKETHROUGH_KEY value:[NSNumber numberWithBool:YES] range:curRange];
-            }
-            if (num & TEXT_HIGHLIGHT) {
-                [_attributedString addAttribute:HIGHLIGHT_KEY value:[NSNumber numberWithBool:YES] range:curRange];
-            }
+        }
+        fontName = regularFontName;
+        pointSize = paragraph_pointSize;
+
+        int num = curAttr.txtAttrib;
+        if (num == TEXT_FORMAT_NONE && curParagraph.style > 4)continue;
+        NSRange curRange = curAttr.styleRange;
+        if (curRange.location+curRange.length > _contentText.length) {
+            NSInteger newLength = _contentText.length;
+            newLength -= curRange.location;
+            curRange = NSMakeRange(curRange.location, (newLength>0)?newLength:0);
+        }
+        if (num & TEXT_BOLD && num & TEXT_ITALIC) {
+            CTFontRef ctFont = CTFontCreateWithName((__bridge CFStringRef) boldItalicFontName, pointSize, NULL);
+            [_attributedString addAttribute:(NSString *)kCTFontAttributeName value:(__bridge id)ctFont range:curRange];
+            CFRelease(ctFont);
+        }else if (num & TEXT_BOLD) {
+            CTFontRef ctFont = CTFontCreateWithName((__bridge CFStringRef) boldFontName, pointSize, NULL);
+            [_attributedString addAttribute:(NSString *)kCTFontAttributeName value:(__bridge id)ctFont range:curRange];
+            CFRelease(ctFont);
+        }else if (num & TEXT_ITALIC) {
+            CTFontRef ctFont = CTFontCreateWithName((__bridge CFStringRef) italicFontName, pointSize, NULL);
+            [_attributedString addAttribute:(NSString *)kCTFontAttributeName value:(__bridge id)ctFont range:curRange];
+            CFRelease(ctFont);
+        }else if (pointSize != normalFontSize || ![fontName isEqualToString:regularFontName]){
+            CTFontRef ctFont = CTFontCreateWithName((__bridge CFStringRef) fontName, pointSize, NULL);
+            [_attributedString addAttribute:(NSString *)kCTFontAttributeName value:(__bridge id)ctFont range:curRange];
+            CFRelease(ctFont);
+        }
+        
+        if (num & TEXT_UNDERLINE) {
+            [_attributedString addAttribute:(NSString *)kCTUnderlineStyleAttributeName value:[NSNumber numberWithInteger:kCTUnderlineStyleSingle] range:curRange];
+        }
+        if (num & TEXT_STRIKE_THROUGH) {
+            [_attributedString addAttribute:STRIKETHROUGH_KEY value:[NSNumber numberWithBool:YES] range:curRange];
+        }
+        if (num & TEXT_HIGHLIGHT) {
+            [_attributedString addAttribute:HIGHLIGHT_KEY value:[NSNumber numberWithBool:YES] range:curRange];
         }
     }
     
@@ -233,6 +233,7 @@ static CGFloat MAX_POSSIBLE_HEIGHT = 100000;
         rect.size.height += normalFontSize;
     }
     self.frame = rect;
+    NSLog(@"New frame %f,%f,%f,%f", rect.origin.x, rect.origin.y, rect.size.width, rect.size.height);
 
     [self updateCTFrame];
     [self setNeedsDisplay];
@@ -865,7 +866,7 @@ static CGFloat MAX_POSSIBLE_HEIGHT = 100000;
 - (CGRect)caretRectForIndex:(int)index
 {
     if (_contentText.length == 0) {
-        PARAGRAPH_STYLE paraStyle = [(P2MSTextView *)self.superview getCurrentParagraphStyle];
+        PARAGRAPH_STYLE paraStyle = [(P2MSTextView *)self.superview paragraphs].current_paragraph.style;
         CGFloat padLeading = [self getLeftPaddingForParagraphFormat:paraStyle];
         UIFont *curFont = [self getRegularFontForParagraphStyle:paraStyle];
 //        CGPoint origin = CGPointMake(CGRectGetMinX(self.bounds), CGRectGetMaxY(self.bounds) - curFont.lineHeight);
@@ -882,7 +883,7 @@ static CGFloat MAX_POSSIBLE_HEIGHT = 100000;
     if (linesCount == 0) {
         return returnRect;
     }
-    
+
     // Special case, insertion point at final position in text after newline.
     if (index == _contentText.length) {
         CTLineRef line = (CTLineRef)CFArrayGetValueAtIndex(lines, linesCount -1);
@@ -893,7 +894,7 @@ static CGFloat MAX_POSSIBLE_HEIGHT = 100000;
         if ([self.contentText characterAtIndex:(index - 1)] == '\n') {
             CFRange range = CTLineGetStringRange(line);
             CGFloat xPos = CTLineGetOffsetForStringIndex(line, range.location, NULL);
-            PARAGRAPH_STYLE paraStyle = [(P2MSTextView *)self.superview getCurrentParagraphStyle];
+            PARAGRAPH_STYLE paraStyle = [(P2MSTextView *)self.superview paragraphs].current_paragraph.style;
             UIFont *curFont = [self getRegularFontForParagraphStyle:paraStyle];
             CGRect curRect = CGRectMake(origin.x, origin.y-descent, 3, 0);
             curRect.origin.y -= curFont.lineHeight;
@@ -932,7 +933,6 @@ static CGFloat MAX_POSSIBLE_HEIGHT = 100000;
     if (returnRect.origin.x >= self.bounds.size.width-2) {
         returnRect.origin.x = self.bounds.size.width-3;
     }
-    NSLog(@"CaretRect for index is called Y %f", returnRect.origin.y);
     return returnRect;
 }
 

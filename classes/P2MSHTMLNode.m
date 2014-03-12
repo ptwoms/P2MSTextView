@@ -9,6 +9,7 @@
 #import "P2MSHTMLNode.h"
 #import "GTMNSString+HTML.h"
 #import "P2MSGlobalFunctions.h"
+#import "P2MSParagraph.h"
 
 @implementation P2MSHTMLNode
 
@@ -20,6 +21,52 @@
 }
 
 @end
+
+
+@implementation P2MSHTMLReferenceTable
+
++ (P2MSHTMLReferenceTable *)sharedInstance {
+    static dispatch_once_t pred;
+    __strong static P2MSHTMLReferenceTable *sharedReferenceTable = nil;
+    dispatch_once( &pred, ^{
+        sharedReferenceTable = [[self alloc] init]; });
+    return sharedReferenceTable;
+}
+
+- (id)init{
+    if (self = [super init]) {
+        _textFormatReference = [NSDictionary dictionaryWithObjects:
+                                                         [NSArray arrayWithObjects:
+                                                          [NSNumber numberWithInt:TEXT_BOLD],
+                                                          [NSNumber numberWithInt:TEXT_ITALIC],
+                                                          [NSNumber numberWithInt:TEXT_UNDERLINE],
+                                                          [NSNumber numberWithInt:TEXT_STRIKE_THROUGH],
+                                                          [NSNumber numberWithInt:TEXT_HIGHLIGHT],
+                                                          [NSNumber numberWithInt:TEXT_LINK],
+                                                          [NSNumber numberWithInt:TEXT_FORMAT_NONE],
+                                                          [NSNumber numberWithInt:TEXT_FORMAT_NONE],
+                                                          nil] forKeys:[NSArray arrayWithObjects:@"b", @"i", @"u", @"strike", @"mark", @"a", @"span", @"NO_HTML", nil]];
+        
+        _paragraphFormatReference = [NSMutableDictionary dictionaryWithObjects:
+                                                             [NSArray arrayWithObjects:
+                                                              [NSNumber numberWithInt:PARAGRAPH_BULLET],
+                                                              [NSNumber numberWithInt:PARAGRAPH_NUMBERING],
+                                                              [NSNumber numberWithInt:PARAGRAPH_SECTION],
+                                                              [NSNumber numberWithInt:PARAGRAPH_SUBSECTION],
+                                                              [NSNumber numberWithInt:PARAGRAPH_BLOCK_QUOTE],
+                                                              [NSNumber numberWithInt:PARAGRAPH_LIST],
+                                                              [NSNumber numberWithInt:PARAGRAPH_NORMAL],
+                                                              [NSNumber numberWithInt:PARAGRAPH_NORMAL],
+                                                              nil]
+                                                    forKeys:[NSArray arrayWithObjects:@"ul", @"ol", @"h3", @"h5", @"blockquote", @"li", @"p", @"div", nil]];
+
+    }
+    return self;
+}
+
+
+@end
+
 
 @implementation P2MSHTMLOperation
 
@@ -60,8 +107,7 @@
     return arr;
 }
 
-
-+ (NSMutableArray *)getHTMLNodes:(NSString *)htmlString{
++ (NSMutableArray *)getHTMLNodes:(NSString *)htmlString withParent:(P2MSHTMLNode *)parentNode{
     NSMutableArray *nodes = [NSMutableArray array];
     NSScanner *theScanner= [NSScanner scannerWithString:htmlString];
     theScanner.charactersToBeSkipped = nil;
@@ -77,8 +123,7 @@
         }else{
             first = [theScanner scanUpToString: @"<" intoString:&initialString];
         }
-        
-        if (initialString && initialString.length) {
+        if(initialString && initialString.length) {
             [self processNewLineInNoHTML:initialString intoArray:&nodes];
             initialString = nil;
         }else if (!first){
@@ -95,13 +140,13 @@
             NSString *content = nil;
             if ((canScan = [theScanner scanUpToString:finalStr intoString:&content])) {
                 P2MSHTMLNode *oneNode = [[P2MSHTMLNode alloc]init];
+                oneNode.parent = parentNode;
                 oneNode.htmlTag = htmlTag;
                 NSString *contentToSave = [content substringFromIndex:1];
                 NSString *htmlStripped = [self stripHTML:contentToSave];
-                
                 oneNode.content = htmlStripped;
                 if (htmlStripped && ![htmlStripped isEqualToString:contentToSave]) {
-                    oneNode.children = [self getHTMLNodes:contentToSave];
+                    oneNode.children = [self getHTMLNodes:contentToSave withParent:oneNode];
                 }else{
                     NSArray *children = [self stripNewLine:htmlStripped];
                     if (children.count > 1) {
@@ -109,6 +154,7 @@
                         for (NSString *inStr in children) {
                             P2MSHTMLNode *oneNode = [[P2MSHTMLNode alloc]init];
                             oneNode.htmlTag = @"NO_HTML";
+                            oneNode.parent = parentNode;
                             oneNode.content = inStr;
                             [childrenNodes addObject:oneNode];
                         }
@@ -132,61 +178,131 @@
     return (nodes.count)?nodes:nil;
 }
 
-+ (void)convertNode:(P2MSHTMLNode **)passNode toParaAttributes:(NSMutableSet **)paraSet toAttributes:(NSMutableArray **)attrArr andLinks:(NSMutableSet **)allLinks refDict:(NSDictionary *)dict{
-    P2MSHTMLNode *node = *passNode;
+//- (PARAGRAPH_STYLE)parentParagraphStyle:(P2MSHTMLNode *)node{
+//    if (node.parent) {
+//        return [[[P2MSHTMLReferenceTable sharedInstance].paragraphFormatReference objectForKey:node.parent.htmlTag] integerValue];
+//    }
+//    return PARAGRAPH_NONE;
+//}
+
++ (void)convertNode:(P2MSHTMLNode **)parentNode toParaAttributes:(NSMutableArray **)paraSet toAttributes:(NSMutableArray **)attrArr andLinks:(NSMutableSet **)allLinks{
+    P2MSHTMLNode *node = *parentNode;
     NSRange strRange = node.range;
-    //calculate child range
+    //child range
+    if (strRange.location == NSNotFound || strRange.length == 0)return;
+    
     if (node.children) {
         NSUInteger lastIndex = strRange.location, curLength = 0;
-        for (P2MSHTMLNode *myNode in node.children) {
-            curLength = myNode.content.length;
-            myNode.range = NSMakeRange(lastIndex, curLength);
+        for (P2MSHTMLNode *children in node.children) {
+            curLength = children.content.length;
+            children.range = NSMakeRange(lastIndex, curLength);
             lastIndex += curLength;
         }
     }
-    
+    NSDictionary *paraDict = [P2MSHTMLReferenceTable sharedInstance].paragraphFormatReference;
+    NSDictionary *txtDict = [P2MSHTMLReferenceTable sharedInstance].textFormatReference;
     NSString *htmlTag = node.htmlTag;
-    if (![htmlTag isEqualToString:@"NO_HTML"]) {
-        if (strRange.location != NSNotFound && strRange.length > 0) {
-            NSNumber *refFmt = [dict objectForKey:htmlTag];
-            if (refFmt) {
-                int format = [refFmt intValue];
-                if (format >= 100) {
-                    if ([htmlTag isEqualToString:@"li"] || [htmlTag isEqualToString:@"a"]) {
-                        if (node.children && node.children.count) {
-                            if (format != PARAGRAPH_NORMAL) {
-                                [self addParaFormat:format forRange:strRange toArr:paraSet];
-                            }
-                        }else{
-                            [self addTextFormat:TEXT_FORMAT_NONE forRange:strRange toArr:attrArr];
-                        }
-                        if ([htmlTag isEqualToString:@"a"]) {
-                            P2MSLink *link = [[P2MSLink alloc]init];
-                            link.linkURL = [node.attributes objectForKey:@"href"];
-                            link.styleRange = node.range;
-                            [(*allLinks) addObject:link];
-                        }
-                    }else{
-                        [self addParaFormat:format forRange:strRange toArr:paraSet];
-                        if (node.children && node.children.count) {}//nothing to do in this case
-                        else//it occurs only when there is no text formatting applied on it
-                            [self addTextFormat:TEXT_FORMAT_NONE forRange:strRange toArr:attrArr];
-                    }
-                    
-                }else{
-                    [self addTextFormat:format forRange:strRange toArr:attrArr];
+    NSNumber *paragraphFormat = [paraDict objectForKey:htmlTag];
+    if (paragraphFormat) {
+        PARAGRAPH_STYLE paragraphStyle = [paragraphFormat integerValue];
+        if (paragraphStyle == PARAGRAPH_LIST) {
+            paragraphStyle = PARAGRAPH_BULLET;
+            if (node.parent) {
+                PARAGRAPH_STYLE parentParagraphStyle = [[paraDict objectForKey:node.parent.htmlTag] integerValue];
+                if (parentParagraphStyle == PARAGRAPH_NUMBERING) {
+                    paragraphStyle = PARAGRAPH_NUMBERING;
                 }
             }
         }
-        if (node.children) {
-            for (P2MSHTMLNode *curNode in node.children) {
-                P2MSHTMLNode *internalNode = curNode;
-                [self convertNode:&internalNode toParaAttributes:paraSet toAttributes:attrArr andLinks:allLinks refDict:dict];
-            }
-        }
+        [self addParaFormat:paragraphStyle forRange:strRange toArr:paraSet];
     }else{
-        [self addTextFormat:TEXT_FORMAT_NONE forRange:strRange toArr:attrArr];
+        NSNumber *txtFormatValue = [txtDict objectForKey:htmlTag];
+        if (txtFormatValue){
+            TEXT_ATTRIBUTE textFormat = [txtFormatValue integerValue];
+            if (textFormat == TEXT_LINK) {
+                P2MSLink *link = [[P2MSLink alloc]init];
+                link.linkURL = [node.attributes objectForKey:@"href"];
+                link.styleRange = node.range;
+                [(*allLinks) addObject:link];
+                [self addTextFormat:TEXT_FORMAT_NONE forRange:strRange toArr:attrArr];
+            }else
+                [self addTextFormat:textFormat forRange:strRange toArr:attrArr];
+        }
     }
+    
+    if (node.children){
+        for (P2MSHTMLNode *curNode in node.children) {
+            P2MSHTMLNode *internalNode = curNode;
+            [self convertNode:&internalNode toParaAttributes:paraSet toAttributes:attrArr andLinks:allLinks];
+        }
+    }
+    
+//    if (![htmlTag isEqualToString:@"NO_HTML"]) {
+//        if (strRange.location != NSNotFound && strRange.length > 0) {
+//            NSNumber *paragraphFormat = [paraDict objectForKey:htmlTag];
+//            if (paragraphFormat) {
+//                PARAGRAPH_STYLE paragraphStyle = [paragraphFormat integerValue];
+//                if (paragraphStyle != PARAGRAPH_BULLET && paragraphStyle != PARAGRAPH_NUMBERING) {
+//                    if (paragraphStyle == PARAGRAPH_LIST && node.parent ) {
+//                    }
+//                    [self addParaFormat:paragraphStyle forRange:strRange toArr:paraSet];
+//                }
+//            }
+//                if ([htmlTag isEqualToString:@"li"] || [htmlTag isEqualToString:@"a"]) {
+//                    if (node.children && node.children.count) {
+//                        if (paragraphStyle != PARAGRAPH_NORMAL) {
+//                            [self addParaFormat:paragraphStyle forRange:strRange toArr:paraSet];
+//                        }
+//                    }else{
+//                        [self addTextFormat:TEXT_FORMAT_NONE forRange:strRange toArr:attrArr];
+//                    }
+//                }
+//                else{
+//                    [self addParaFormat:paragraphStyle forRange:strRange toArr:paraSet];
+//                    if (node.children && node.children.count) {}//nothing to do in this case
+//                    else//it occurs only when there is no text formatting applied on it
+//                        [self addTextFormat:TEXT_FORMAT_NONE forRange:strRange toArr:attrArr];
+//                }
+//            }else{
+//            }
+//            NSNumber *refFmt = [dict objectForKey:htmlTag];
+//            if (refFmt) {
+//                int format = [refFmt intValue];
+//                if (format >= 100) {
+//                    if ([htmlTag isEqualToString:@"li"] || [htmlTag isEqualToString:@"a"]) {
+//                        if (node.children && node.children.count) {
+//                            if (format != PARAGRAPH_NORMAL) {
+//                                [self addParaFormat:format forRange:strRange toArr:paraSet];
+//                            }
+//                        }else{
+//                            [self addTextFormat:TEXT_FORMAT_NONE forRange:strRange toArr:attrArr];
+//                        }
+//                        if ([htmlTag isEqualToString:@"a"]) {
+//                            P2MSLink *link = [[P2MSLink alloc]init];
+//                            link.linkURL = [node.attributes objectForKey:@"href"];
+//                            link.styleRange = node.range;
+//                            [(*allLinks) addObject:link];
+//                        }
+//                    }else{
+//                        [self addParaFormat:format forRange:strRange toArr:paraSet];
+//                        if (node.children && node.children.count) {}//nothing to do in this case
+//                        else//it occurs only when there is no text formatting applied on it
+//                            [self addTextFormat:TEXT_FORMAT_NONE forRange:strRange toArr:attrArr];
+//                    }
+//                }else{
+//                    [self addTextFormat:format forRange:strRange toArr:attrArr];
+//                }
+//            }
+//        }
+//        if (node.children) {
+//            for (P2MSHTMLNode *curNode in node.children) {
+//                P2MSHTMLNode *internalNode = curNode;
+//                [self convertNode:&internalNode toParaAttributes:paraSet toAttributes:attrArr andLinks:allLinks refDict:dict];
+//            }
+//        }
+//    }else{
+//        [self addTextFormat:TEXT_FORMAT_NONE forRange:strRange toArr:attrArr];
+//    }
 }
 
 + (void)addTextFormat:(TEXT_ATTRIBUTE)txtFmt forRange:(NSRange)range toArr:(NSMutableArray **)attrArr{
@@ -224,11 +340,45 @@
     }
 }
 
-+ (void)addParaFormat:(PARAGRAPH_STYLE)paraFmt forRange:(NSRange)range toArr:(NSMutableSet **)arr{
-    P2MSParagraphStyle *curFmt = [[P2MSParagraphStyle alloc]init];
-    curFmt.paraStyle = paraFmt;
-    curFmt.styleRange = range;
-    [(*arr) addObject:curFmt];
++ (void)addParaFormat:(PARAGRAPH_STYLE)paraFmt forRange:(NSRange)range toArr:(NSMutableArray **)paraArr{
+    BOOL isNew = YES;
+    NSRange intersectRange;
+    for (P2MSParagraph *curPara in *paraArr) {
+        if ((intersectRange = NSIntersectionRange(curPara.styleRange, range)).length > 0) {
+            if (intersectRange.length != curPara.styleRange.length) {//split it into two or three
+                if (curPara.styleRange.location < intersectRange.location) {
+                    P2MSParagraph *leftPara = [[P2MSParagraph alloc]init];
+                    leftPara.style = curPara.style;
+                    leftPara.styleRange = NSMakeRange(curPara.styleRange.location, intersectRange.location - curPara.styleRange.location);
+                    [(*paraArr) addObject:leftPara];
+                }
+                NSInteger finalIntersectPos = intersectRange.location + intersectRange.length;
+                NSInteger finalFmtPos = curPara.styleRange.location + curPara.styleRange.length;
+                if (finalFmtPos > finalIntersectPos) {
+                    P2MSParagraph *rightPara = [[P2MSParagraph alloc]init];
+                    rightPara.style =  curPara.style;
+                    rightPara.styleRange = NSMakeRange(finalIntersectPos, finalFmtPos - finalIntersectPos);
+                    [(*paraArr) addObject:rightPara];
+                }
+                curPara.styleRange = intersectRange;
+                curPara.style = curPara.style | paraFmt;
+            }else
+                curPara.style |= paraFmt;
+            isNew = NO;break;
+        }
+    }
+
+    if (isNew) {
+        P2MSParagraph *curPara = [[P2MSParagraph alloc]init];
+        curPara.style = paraFmt;
+        curPara.styleRange = range;
+        [(*paraArr) addObject:curPara];
+    }
+
+//    P2MSParagraph *curFmt = [[P2MSParagraph alloc]init];
+//    curFmt.style = paraFmt;
+//    curFmt.range = range;
+//    [(*arr) addObject:curFmt];
 }
 
 
