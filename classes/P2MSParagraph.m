@@ -60,25 +60,7 @@
             }
         }
     }
-    NSLog(@"Current Paragraph index %d for text %@", cur_paragraph_index, _text);
-}
-
-- (BOOL)test_paragraph_to_remove:(NSInteger)paragraph_index forRange:(NSRange)range_to_remove deleteCollection:(NSMutableArray **)paragraphs_to_remove{
-    P2MSParagraph *paragraph_to_test = [_paragraphs objectAtIndex:paragraph_index];
-    NSRange intersect_range = NSIntersectionRange(paragraph_to_test.styleRange, range_to_remove);
-    if (intersect_range.length == paragraph_to_test.styleRange.length) {
-        //delete test paragraph
-        [(*paragraphs_to_remove) addObject:paragraph_to_test];
-        return NO;
-    }else{
-        if(intersect_range.length > 0){
-            //combine test paragraph and current paragraph and style to current style
-            NSInteger additioanl_location_to_move = (intersect_range.location == paragraph_to_test.styleRange.location) * intersect_range.length;
-            paragraph_to_test.styleRange = NSMakeRange(paragraph_to_test.styleRange.location + additioanl_location_to_move, paragraph_to_test.styleRange.length - intersect_range.length);
-            return NO;
-        }
-        return YES;
-    }
+//    NSLog(@"Current Paragraph index %d for text %@", cur_paragraph_index, _text);
 }
 
 - (void)updateLocationsFromCurrentParagraph{
@@ -97,44 +79,52 @@
 }
 
 - (void)deleteRangeWithoutUpdatingLocation:(NSRange)selected_range{
-    NSRange _current_paragraph_range = _current_paragraph.styleRange;
-    NSInteger selected_end_location = selected_range.location + selected_range.length;
-    if (selected_range.location >= _current_paragraph_range.location && selected_end_location <= (_current_paragraph_range.location+_current_paragraph_range.length)) {
-        _current_paragraph_range.length = _current_paragraph_range.length - selected_range.length;
-        _current_paragraph.styleRange = _current_paragraph_range;
-    }else if(selected_range.location < _current_paragraph_range.location){
-        cur_paragraph_index--;
-        P2MSParagraph *para_to_concat = _current_paragraph;
-        _current_paragraph = [_paragraphs objectAtIndex:cur_paragraph_index];
-        _current_paragraph.styleRange = NSMakeRange(_current_paragraph.styleRange.location, _current_paragraph.styleRange.length+para_to_concat.styleRange.length-selected_range.length);
-        [_paragraphs removeObject:para_to_concat];
-    }
-    else{
-        NSMutableArray *paragraphs_to_remove = [NSMutableArray array];
-        NSInteger selected_last_position = selected_range.location + selected_range.length;
-        if (selected_last_position >= _current_paragraph_range.location) { //current and subsequent paragraphs
-            int paragraph_count = _paragraphs.count;
-            for (int i = cur_paragraph_index; i < paragraph_count; i++) {
-                if ([self test_paragraph_to_remove:i forRange:selected_range deleteCollection:&paragraphs_to_remove]) {
+    NSMutableArray *paragraphs_to_remove = [NSMutableArray array];
+    if (selected_range.length) { //current and subsequent paragraphs
+        int paragraph_count = _paragraphs.count;
+        
+        P2MSParagraph *part_1 = nil, *part_2 = nil;
+        for (int i = cur_paragraph_index; i < paragraph_count; i++) {
+            P2MSParagraph *paragraph_to_test = [_paragraphs objectAtIndex:i];
+            NSRange intersect_range = NSIntersectionRange(paragraph_to_test.styleRange, selected_range);
+            if (intersect_range.length == paragraph_to_test.styleRange.length) {
+                //delete test paragraph
+                [paragraphs_to_remove addObject:paragraph_to_test];
+            }else{
+                if(intersect_range.length > 0){
+                    //combine test paragraph and current paragraph and style to current style
+                    NSInteger additioanl_location_to_move = (intersect_range.location == paragraph_to_test.styleRange.location) * intersect_range.length;
+                    paragraph_to_test.styleRange = NSMakeRange(paragraph_to_test.styleRange.location + additioanl_location_to_move, paragraph_to_test.styleRange.length - intersect_range.length);
+                    paragraph_to_test.style = _current_paragraph.style;
+                    if (part_1) {
+                        part_2 = paragraph_to_test;
+                    }else{
+                        part_1 = paragraph_to_test;
+                    }
+                }else
                     break;
-                }
             }
         }
+        if (part_2) {
+            part_1.styleRange = NSMakeRange(part_1.styleRange.location, part_2.styleRange.length+part_1.styleRange.length);
+            [paragraphs_to_remove addObject:part_2];
+        }else{
+            part_1.styleRange = NSMakeRange(selected_range.location, part_1.styleRange.length);
+        }
+        
         for (P2MSParagraph *paragraph_to_remove in paragraphs_to_remove) {
             [_paragraphs removeObject:paragraph_to_remove];
         }
         
-        if (cur_paragraph_index >= _paragraphs.count) {
-            P2MSParagraph *new_paragraph = [[P2MSParagraph alloc]init];
-            new_paragraph.style = PARAGRAPH_NORMAL;
-            P2MSParagraph *last_paragraph = [_paragraphs lastObject];
-            new_paragraph.styleRange = NSMakeRange(last_paragraph.styleRange.location+last_paragraph.styleRange.length, 0);
-            [_paragraphs addObject:new_paragraph];
+        if (_paragraphs.count) {
             _current_paragraph = [_paragraphs objectAtIndex:cur_paragraph_index];
-        }else if(cur_paragraph_index < _paragraphs.count-1 && ([_text characterAtIndex:_current_paragraph.styleRange.location+_current_paragraph.styleRange.length] != '\n')){
-            P2MSParagraph *next_paragraph_to_concat = [_paragraphs objectAtIndex:cur_paragraph_index+1];
-            _current_paragraph.styleRange = NSMakeRange(_current_paragraph.styleRange.location, _current_paragraph.styleRange.length+next_paragraph_to_concat.styleRange.length);
-            [_paragraphs removeObject:next_paragraph_to_concat];
+        }else{
+            P2MSParagraph *newParagraph = [[P2MSParagraph alloc]init];
+            newParagraph.styleRange = NSMakeRange(0, 0);
+            newParagraph.style = _current_paragraph.style;
+            [_paragraphs addObject:newParagraph];
+            cur_paragraph_index = 0;
+            _current_paragraph = [_paragraphs objectAtIndex:cur_paragraph_index];
         }
     }
 }
@@ -150,7 +140,7 @@
             newParagraph.styleRange = NSMakeRange(selected_range.location+1, 0);
             newParagraph.style = _current_paragraph.style;
             [_paragraphs addObject:newParagraph];
-            cur_para_length = _current_paragraph.styleRange.length + inserted_text.length;
+            cur_para_length = _current_paragraph.styleRange.length + 1;//inserted_text.length;
         }else{//split current paragraph into two
             //second paragraph
             NSInteger second_para_loc = selected_range.location+1;

@@ -631,52 +631,6 @@ NSComparisonResult (^globalSortBlock)(id,id) = ^(id lhs, id rhs) {
     }
 }
 
-//- (void)deleteParagraphFormatForRange:(NSRange)affectedRange withText:(NSString *)text rangeAfter:(NSRange)selectedNSRange{
-//    if (affectedRange.location == NSNotFound)return;
-//    //delete links
-//    NSMutableSet *linkToDelete = [NSMutableSet set];
-//    for (P2MSLink *curLink in links) {
-//        NSRange intersetRange = NSIntersectionRange(curLink.styleRange, affectedRange);
-//        if (intersetRange.length == curLink.styleRange.length) {
-//            [linkToDelete addObject:curLink];
-//        }else if (intersetRange.length){
-//            if (intersetRange.location > curLink.styleRange.location) {
-//                curLink.styleRange = NSMakeRange(curLink.styleRange.location, curLink.styleRange.length-intersetRange.length);
-//            }else{
-//                curLink.styleRange = NSMakeRange(affectedRange.location, curLink.styleRange.length-intersetRange.length);
-//            }
-//        }else{
-//            NSUInteger affectedLoc = affectedRange.location + affectedRange.length;
-//            if (affectedLoc <= curLink.styleRange.location) {
-//                curLink.styleRange = NSMakeRange(curLink.styleRange.location-affectedRange.length, curLink.styleRange.length);
-//            }
-//        }
-//    }
-//    for (P2MSLink *link in linkToDelete) {
-//        [links removeObject:link];
-//    }
-//}
-
-//- (void)replaceParagraphFormatAtRange:(NSRange)affectedRange withText:(NSString *)text rangeAfter:(NSRange)selectedNSRange{
-//    NSUInteger textLength = text.length;
-//    
-//    if (affectedRange.length) {
-//        [self deleteParagraphFormatForRange:affectedRange withText:text rangeAfter:selectedNSRange];
-//    }
-//    
-//    //insert inside links
-//    if (textLength) {
-//        for (P2MSLink *curLink in links) {
-//            if (affectedRange.location <= curLink.styleRange.location) {
-//                curLink.styleRange = NSMakeRange(curLink.styleRange.location+textLength, curLink.styleRange.length);
-//            }else if(NSLocationInRange(affectedRange.location, curLink.styleRange)){
-//                curLink.styleRange = NSMakeRange(curLink.styleRange.location, curLink.styleRange.length+textLength);
-//            }
-//        }
-//    }
-//
-//}
-
 
 #pragma mark UIKeyInput methods
 
@@ -2040,9 +1994,7 @@ NSComparisonResult (^globalSortBlock)(id,id) = ^(id lhs, id rhs) {
 }
 
 - (void)addNormalParagraphsForString:(NSString *)finalStr withRange:(NSRange)overallRange appendParagraphs:(NSMutableArray **)parasToAdd{
-    NSString *leftStr = [finalStr substringWithRange:overallRange];
-//    NSArray *componentSeparatedByNewLine = [leftStr componentsSeparatedByString:@"\n"];//need to think about new line
-    
+    NSString *leftStr = [finalStr substringWithRange:overallRange];    
     NSUInteger curLocation = 0;
     NSInteger strLength = overallRange.length;
     while (curLocation < strLength) {
@@ -2061,21 +2013,6 @@ NSComparisonResult (^globalSortBlock)(id,id) = ^(id lhs, id rhs) {
             break;
         }
     }
-//    if (componentSeparatedByNewLine.count > 1) {
-//        NSInteger paraStartPos = overallRange.location;
-//        for (NSString *str in componentSeparatedByNewLine) {
-//            P2MSParagraph *newParagraph = [[P2MSParagraph alloc]init];
-//            newParagraph.styleRange = NSMakeRange(paraStartPos, str.length+1);
-//            newParagraph.style = PARAGRAPH_NORMAL;
-//            [*parasToAdd addObject:newParagraph];
-//            paraStartPos += newParagraph.styleRange.length;
-//        }
-//    }else{
-//        P2MSParagraph *newParagraph = [[P2MSParagraph alloc]init];
-//        newParagraph.styleRange = overallRange;
-//        newParagraph.style = PARAGRAPH_NORMAL;
-//        [*parasToAdd addObject:newParagraph];
-//    }
 }
 
 - (void)importHTMLString:(NSString *)htmlString{

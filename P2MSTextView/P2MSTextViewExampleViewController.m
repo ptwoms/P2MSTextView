@@ -35,7 +35,7 @@
     textView.autoresizingMask = UIViewAutoresizingFlexibleWidth;
     textView.textViewDelegate = self;
     textView.inputAccessoryView = [self inputAccessoryView];
-    [textView importHTMLString:@"Hello \n\n<b>W<strike>o</strike><u>r</u><mark>l</mark><i>d</i></b>"];
+    [textView importHTMLString:@"Hello\n<b>W<strike>o</strike><u>r</u><mark>l</mark><i>d</i></b>"];
 //    textView.plainText = @"Hello World";
     [self.view addSubview:textView];
     [textView becomeFirstResponder];

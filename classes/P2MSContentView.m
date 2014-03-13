@@ -147,8 +147,8 @@ static CGFloat MAX_POSSIBLE_HEIGHT = 100000;
     NSString *italicFontName = [_fontNames objectForKey:@"italic"];
     
     NSEnumerator *paragraphEnumerator = [paragraphs objectEnumerator];
-    P2MSParagraph *curParagraph = nil;//[paragraphEnumerator nextObject];
-    CGFloat paragraphEndPos = 0;//curParagraph.styleRange.location + curParagraph.styleRange.length;
+    P2MSParagraph *curParagraph = nil;
+    CGFloat paragraphEndPos = 0;
     
     NSString *fontName;
     CGFloat pointSize, paragraph_pointSize = normalFontSize;
