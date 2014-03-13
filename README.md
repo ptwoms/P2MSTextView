@@ -2,6 +2,8 @@ P2MSTextView (OnGoing)
 ============
 An easy way to enable rich text editing in IOS. This project is inspired by the Evernote's rich text editor.
 
+<sup>***Checkout [Development](https://github.com/ptwoms/P2MSTextView/tree/development) branch for the latest progress.***</sup>
+
 This is supposed to work on IOS 4.3+.
 
 ###Usage
